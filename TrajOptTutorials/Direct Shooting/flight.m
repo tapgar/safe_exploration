@@ -22,3 +22,7 @@ optimal = fmincon(energy_fun, x0, A, b, Aeq, Beq, lb, ub, @flight_constraint);
 opt_time = optimal(1);
 opt_vx0 = optimal(2);
 opt_vy0 = optimal(3);
+
+plot(opt_time, opt_vx0)
+hold on
+plot(opt_time, opt_vy0)
