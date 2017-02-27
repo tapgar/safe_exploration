@@ -38,7 +38,7 @@ classdef GP_model
             
             obj.K = zeros(max_num_pts, max_num_pts);
             obj.invK = zeros(max_num_pts, max_num_pts);
-            obj.X_time = zeros(max_num_pts, obj.nX);
+            obj.X_time = zeros(max_num_pts, 1);
             
             obj = obj.addPoint(newX,newY);
         end
@@ -59,7 +59,7 @@ classdef GP_model
                     sig = cumsum(shuffTemp(:,2));
                     tempidx = min(find(t < sig));
                     idx = shuffTemp(tempidx,1);
-                    
+                    idx = randi(obj.num_pts);
                     obj.X(idx,:) = newX;
                     obj.y(idx,:) = newY;
                     
@@ -79,9 +79,9 @@ classdef GP_model
                 obj = obj.ComputeKernel(newX);
                 
             end
-            
-            %obj.c = mean(obj.X(1:obj.num_pts,:));
-            
+            if obj.num_pts > 1
+                obj.c = mean(obj.X(1:obj.num_pts,:));
+            end
             obj.X_time(1:obj.num_pts,1) = obj.X_time(1:obj.num_pts,1) + ones(obj.num_pts,1);
             
         end
