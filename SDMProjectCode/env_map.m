@@ -12,15 +12,24 @@ t = linspace(s1, s2);
 x = r * cos(t) + pendulum_topx;
 y = r * sin(t) + pendulum_topy;
 
-b1 = 0;
+b1 = 20*pi/12;
 b2 = (23*pi)/12;
+% b2 = 2*pi;
 
 unsafe = linspace(b1, b2);
 
 bx = r * cos(unsafe) + pendulum_topx;
 by = r * sin(unsafe) + pendulum_topy;
 
-if size(intersect(t, unsafe)) > 0
+% if size(intersect(t, unsafe)) > 0
+%     check = 1;
+% else
+%     check = 0;
+% end
+
+if s1 > b1 && s1 < b2
+    check = 1;
+elseif s2 > b1 && s2 < b2
     check = 1;
 else
     check = 0;
@@ -32,11 +41,11 @@ end
 %    check = 0;
 %end
 
-plot(x, y, 'o');
-axis([-2, 2, -1, 3]); 
-hold on
-plot(bx, by, 'o');
-hold on
+% plot(x, y, 'o');
+% axis([-2, 2, -1, 3]); 
+% hold on
+% plot(bx, by, 'o');
+% hold on
 
 %cart_x1 = 1 * sin(s1);
 %cart_y1 = 1 - 1 * cos(s1);
