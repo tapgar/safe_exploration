@@ -1,3 +1,6 @@
+% precompute matrix M for STOMP
+% input v is equal to the number of rows for matrix M output
+
 function M = precompute(v)
 
 diag = -2 * ones(1,v);
@@ -13,7 +16,7 @@ D(3:end, :) = eye(v);
 
 A = B + C + D;
 
-R_1 = (transpose(A) * A)';
+R_1 = inv(A' * A);
 
 M = R_1;
 

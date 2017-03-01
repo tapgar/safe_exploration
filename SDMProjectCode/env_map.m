@@ -41,11 +41,11 @@ end
 %    check = 0;
 %end
 
-% plot(x, y, 'o');
-% axis([-2, 2, -1, 3]); 
-% hold on
-% plot(bx, by, 'o');
-% hold on
+%plot(x, y, 'o');
+%axis([-2, 2, -1, 3]); 
+%hold on
+%plot(bx, by, 'o');
+%hold on
 
 %cart_x1 = 1 * sin(s1);
 %cart_y1 = 1 - 1 * cos(s1);
