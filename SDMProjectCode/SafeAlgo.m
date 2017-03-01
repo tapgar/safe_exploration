@@ -19,10 +19,10 @@ function SafeAlgo()
     %#######################################
     %############## VARIABLES ##############
     %#######################################
-    cur_state = 0;                    % current state
-    end_state = pi;                   % goal state
-    u_inputs = [-U_MAX, U_MAX, 0];    % Possible inputs
-    M_smoothing = ones(POINTS_IN_TRAJ - 1, 2);                 % Smoothing array for STOMP
+    cur_state = 0;                              % current state
+    end_state = pi;                             % goal state
+    u_inputs = [-U_MAX, U_MAX, 0];              % Possible inputs
+    [M, A, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
     
     
     
@@ -100,7 +100,7 @@ function SafeAlgo()
             end
         end
         % Smooth with M = smoothing factor
-        delta_smooth = M_smoothing .* delta;
+        delta_smooth = M .* delta;
         pos_traj_new = pos_traj(1:end-1) + delta_smooth(:,1);
         vel_traj_new = vel_traj(1:end-1) + delta_smooth(:,2);
 

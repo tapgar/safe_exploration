@@ -1,7 +1,7 @@
 % precompute matrix M for STOMP
 % input v is equal to the number of rows for matrix M output
 
-function M = precompute(v)
+function [M, A, R_1] = precompute(v)
 
 diag = -2 * ones(1,v);
 
