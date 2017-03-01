@@ -13,7 +13,7 @@ function SafeAlgo()
     STOMP_NOISE_MEAN = 0;           % mean of noise for trajectory
     STOMP_NOISE_STD = 0.1;          % noise std for trajectory
     NUM_OF_STATES = 2;              % number of state variables
-
+    H = 10;                         % STOMP regularizing term
     
     
     %#######################################
@@ -50,10 +50,11 @@ function SafeAlgo()
 %     plot(pos_traj, 'ro')
 %     hold on
 %     plot(vel_traj, 'bo')
-    noise = cellK,1};
+    noise = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
     for i_K = 1:K
-       noise{i_K} = normrnd(STOMP_NOISE_MEAN, STOMP_NOISE_STD, size([pos_traj, vel_traj]));
-       STOMP_traj{i_K} = [pos_traj, vel_traj] + noise{i_K};
+        %update noise to be sampled from R^-1
+       noise(i_K, :, :) = normrnd(STOMP_NOISE_MEAN, STOMP_NOISE_STD, size([pos_traj, vel_traj]));
+       STOMP_traj{i_K} = [pos_traj, vel_traj] + squeeze(noise(i_K,:,:));
 %        plot(STOMP_traj{i_K}(:,1), 'ro')
 %        plot(STOMP_traj{i_K}(:,2), 'bo')
     end
@@ -71,17 +72,33 @@ function SafeAlgo()
             % cost of trajectory
 
     % Choose Policy
-    importance_weighting = rand(K, POINTS_IN_TRAJ, NUM_OF_STATES);
-    for i_K = 1:K % each trajectory
+    cost = rand(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+    importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+    for i_step = 1:length(STOMP_traj{1}(:,1)) % each point in trajectory
+        for i_K = 1:K % each trajectory
         % Weight all points sampled during STOMP 
-        for i_step = 1:length(STOMP_traj{i_K}(:,1)) % each point in trajectory
-            
+            for i_state = 1:NUM_OF_STATES
+                num = cost(i_K, i_step, i_state) - min(cost(:, i_step, i_state));
+                den = max(cost(:, i_step, i_state)) - min(cost(:, i_step, i_state));
+                importance_weighting(i_K, i_step, i_state) = exp(-H * num/den); 
+            end
+        end
+        %normalize for softmax
+        for i_state = 1:NUM_OF_STATES
+            importance_weighting(:, i_step, i_state) = importance_weighting(:, i_step, i_state) / sum(importance_weighting(:, i_step, i_state));
         end
     end
-        % Build softmax and sample
-        % add that to original trajectory
-        % Smooth with M = smoothing factor
-        
+    
+    % add that to original trajectory
+    delta = zeros(POINTS_IN_TRAJ - 1, NUM_OF_STATES);
+    for i_step = 1:length(delta)
+        for i_states = 1:NUM_OF_STATES
+            % delta = sum (prob * noise) for each variation at that point
+            delta(i_step) = importance_weighting(:, i_step, i_states) * noise(:, i_step, i_states);
+        end
+    end
+    % Smooth with M = smoothing factor
+    % delta_smooth = M * delta;
     % Evaluate Safety of POlicy
     
     % if above threshold -> return policy
