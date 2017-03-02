@@ -22,7 +22,7 @@ function SafeAlgo()
     cur_state = 0;                              % current state
     end_state = pi;                             % goal state
     u_inputs = [-U_MAX, U_MAX, 0];              % Possible inputs
-    M_smoot = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
+    [M, A, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
     
     
     
@@ -51,7 +51,8 @@ function SafeAlgo()
     %     plot(pos_traj, 'ro')
     %     hold on
     %     plot(vel_traj, 'bo')
-        noise = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+%         noise = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+        noise = mvnrnd(zeros(1,POINTS_IN_TRAJ), R_1);
         for i_K = 1:K
             %update noise to be sampled from R^-1
            noise(i_K, :, :) = normrnd(STOMP_NOISE_MEAN, STOMP_NOISE_STD, size([pos_traj, vel_traj]));
@@ -100,7 +101,7 @@ function SafeAlgo()
             end
         end
         % Smooth with M = smoothing factor
-        delta_smooth = M_smoothing .* delta;
+        delta_smooth = M .* delta;
         pos_traj_new = pos_traj(1:end-1) + delta_smooth(:,1);
         vel_traj_new = vel_traj(1:end-1) + delta_smooth(:,2);
 

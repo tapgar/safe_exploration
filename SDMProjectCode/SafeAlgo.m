@@ -21,7 +21,7 @@ function SafeAlgo()
     %#######################################
     cur_state = 0;                              % current state
     end_state = pi;                             % goal state
-    u_inputs = [-U_MAX, U_MAX, 0];              % Possible inputs
+%     u_inputs = [-U_MAX, U_MAX, 0];              % Possible inputs
     [M, A, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
     
     
@@ -31,12 +31,16 @@ function SafeAlgo()
     u_traj = [];
     pos_traj = linspace(cur_state, end_state, POINTS_IN_TRAJ)';
     vel_traj = zeros(size(pos_traj));
+    time_array = DELTA_T * linspace(1, POINTS_IN_TRAJ);
     
     for i_traj = 2:length(pos_traj) - 1
         start_traj = pos_traj(i_traj);
         end_traj = pos_traj(i_traj + 1);
-        vel_start = vel_traj(i_traj-1);
+        vel_start = vel_traj(i_traj-1); 
         vel_traj(i_traj) = (end_traj - start_traj) * 2 / DELTA_T - vel_start;
+        if i_traj == 2
+            vel_traj(i_traj) = vel_traj(i_traj)/2; % cheating to make it not go full speed and then slow down
+        end
     end    
     % Trajectory is crazy (need to smooth it out)
 %     plot(pos_traj, 'ro')
@@ -44,7 +48,7 @@ function SafeAlgo()
 %     plot(vel_traj, 'bo')
 %     hold off
     
-    for i = 1:10
+    for i = 1:50 % iterations over STOMP
         % Create K trajectories by adding Noise
         STOMP_traj = cell(K,1);
     %     STOMP_traj{:} = zeros(shape(start_traj), 2); % K trajectories x pts x [pos, vel]
@@ -52,6 +56,7 @@ function SafeAlgo()
     %     hold on
     %     plot(vel_traj, 'bo')
         noise = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+%         noise = mvnrnd(zeros(POINTS_IN_TRAJ, 1), R_1); % this should work but it doesn't?!
         for i_K = 1:K
             %update noise to be sampled from R^-1
            noise(i_K, :, :) = normrnd(STOMP_NOISE_MEAN, STOMP_NOISE_STD, size([pos_traj, vel_traj]));
@@ -67,20 +72,30 @@ function SafeAlgo()
             % other matrices
 
         % Imagination Rollouts
-            % Build matrices
+            % Build matrices - done as precompute step
             % Sample at each time step
                 % check if it is safe - ?
                 % cost of trajectory
 
         % Choose Policy
-        cost = rand(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+%         cost = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
+        acc_traj = zeros(K, POINTS_IN_TRAJ);
+        cost = zeros(K, POINTS_IN_TRAJ);
+        for i_K = 1:K
+            acc_traj(i_K,:) = [diff(STOMP_traj{i_K}(:,2)); 0];
+            for i_PIJ = 1:POINTS_IN_TRAJ
+                % should this be one cost for all state?
+                cost(i_K, i_PIJ) = S(STOMP_traj{i_K}(i_PIJ, :)) - acc_traj(i_K, i_PIJ) ^ 2; 
+                
+            end
+        end
         importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
         for i_step = 1:length(STOMP_traj{1}(:,1)) % each point in trajectory
             for i_K = 1:K % each trajectory
             % Weight all points sampled during STOMP 
                 for i_state = 1:NUM_OF_STATES
-                    num = cost(i_K, i_step, i_state) - min(cost(:, i_step, i_state));
-                    den = max(cost(:, i_step, i_state)) - min(cost(:, i_step, i_state));
+                    num = cost(i_K, i_step) - min(cost(:, i_step));
+                    den = max(cost(:, i_step)) - min(cost(:, i_step));
                     importance_weighting(i_K, i_step, i_state) = exp(-H * num/den); 
                 end
             end
@@ -92,7 +107,7 @@ function SafeAlgo()
         end
 
         % add that to original trajectory
-        delta = zeros(POINTS_IN_TRAJ - 1, NUM_OF_STATES);
+        delta = zeros(POINTS_IN_TRAJ, NUM_OF_STATES);
         for i_step = 1:length(delta)
             for i_states = 1:NUM_OF_STATES
                 % delta = sum (prob * noise) for each variation at that point
@@ -100,17 +115,18 @@ function SafeAlgo()
             end
         end
         % Smooth with M = smoothing factor
-        delta_smooth = M .* delta;
-        pos_traj_new = pos_traj(1:end-1) + delta_smooth(:,1);
-        vel_traj_new = vel_traj(1:end-1) + delta_smooth(:,2);
+        delta_smooth = M * delta;
+        pos_traj_new = pos_traj(1:end) + delta_smooth(:,1);
+        vel_traj_new = vel_traj(1:end) + delta_smooth(:,2);
 
 
-        plot(pos_traj, 'ro')
+        plot(time_array, pos_traj, 'ro', time_array, vel_traj, 'bo')
         hold on
-        plot(vel_traj, 'bo')
-        plot(pos_traj_new, 'r*')
-        plot(vel_traj_new, 'b*')
+        plot(time_array, pos_traj_new, 'r*', time_array, vel_traj_new, 'b*')
         hold off
+        
+        pos_traj = pos_traj_new;
+        vel_traj = vel_traj_new;
     end
     % Evaluate Safety of POlicy
     
@@ -123,5 +139,15 @@ function SafeAlgo()
     % create trajectory x0 -> xi -> x0 (probably just use STOMP again)
     
     % update f_cost based on objective (change it somehow)
+
+
+
+    function c = S(state) %this should be part of env?
+        pos = state(1);
+        vel = state(2);
+
+        c = -(end_state - pos) - vel^2; 
+    end
+
 
 end
