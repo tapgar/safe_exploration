@@ -2,6 +2,7 @@
 % input v is equal to the number of rows for matrix M output
 
 function [M, A, R_1] = precompute(v)
+close all;
 
 diag = -2 * ones(1,v);
 

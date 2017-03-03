@@ -1,4 +1,5 @@
 function check = env_map(s1, s2)
+close all;
 
 pendulum_topx = 0;
 pendulum_topy = 1;
