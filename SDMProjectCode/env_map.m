@@ -1,5 +1,11 @@
 function check = env_map(s1, s2)
 
+% constrain values of s1 and s2 to [0, 2pi]
+s1 = mod(s1, 2*pi);
+s2 = mod(s2, 2*pi);
+
+
+
 pendulum_topx = 0;
 pendulum_topy = 1;
 
@@ -27,9 +33,9 @@ by = r * sin(unsafe) + pendulum_topy;
 %     check = 0;
 % end
 
-if s1 > b1 && s1 < b2
+if s1 > b1 && s2 > b1 % both larger
     check = 1;
-elseif s2 > b1 && s2 < b2
+elseif s1 < b1 && s2 < b1 % both smaller
     check = 1;
 else
     check = 0;
