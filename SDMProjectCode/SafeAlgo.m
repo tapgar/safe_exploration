@@ -2,16 +2,12 @@ function SafeAlgo(env)
     close all
     
     if nargin < 1
-        env = PendulumEnv(@env_map)
+        env = PendulumEnv(@env_map);
     end
     
     %#######################################
     %################ TODO #################
     %#######################################
-
-    % STOMP is definitely not working
-        % need to change to u's from pos,vel ***P1***
-    
     % change environment to class that has map as input
         % return things like 
             % Nominal Trajectory
@@ -27,6 +23,7 @@ function SafeAlgo(env)
     % double check coordinate system for pendulum and signs in equations
     
     % how to get point of maximum info gain?
+        % KL distance
     
     %#######################################
     %############## CONSTANTS ##############
@@ -39,7 +36,7 @@ function SafeAlgo(env)
     POINTS_IN_TRAJ = env.POINTS_IN_TRAJ;           % points in trajectory
     DELTA_T = env.DELTA_T;                         % time step size
     NUM_OF_STATES = 2;              % number of state variables
-    H = 10;                         % STOMP regularizing term
+    NUM_OF_INPUTS = 1;              % number of input variabls (u's)
     ROLLOUTS = 10;                  % Number of imaginary rollouts
     SAFETY_THRESHOLD = 0.95;        % Threshold above which to accept trajectory
     
@@ -47,18 +44,13 @@ function SafeAlgo(env)
     %###########################################
     %############## VISUALIZATION ##############
     %###########################################
-    NOMINAL_TRAJECTORY = false;
-    STOMP_1            = false;
-    STOMP_2            = false;
     
     
     %#######################################
     %############## VARIABLES ##############
     %#######################################
-    cur_state = [0, 0];                              % current state
-    end_state = [pi, 0];                             % goal state
-%     u_inputs = [-U_MAX, U_MAX, 0];              % Possible inputs
-    [M, A, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
+    cur_state = env.CUR_STATE;                              % current state
+    end_state = env.END_STATE;                             % goal state
     max_vel = 4;
     min_vel = -4;
     
@@ -69,94 +61,14 @@ function SafeAlgo(env)
     
     
     
-    
+    % ########## NOMINAL TRAJECTORY ############# %
     time_array = DELTA_T * linspace(1, POINTS_IN_TRAJ);
+    env = env.NominalTrajectory();
    
     
     % ########## STOMP ############# %
-    for i = 1:50 % iterations over STOMP
-        % Create K trajectories by adding Noise
-        STOMP_traj = cell(K,1);
-        
-        R_1 = (R_1 + R_1') / 2; %need this for mvnrnd to work - i have no idea why
-        % https://www.mathworks.com/matlabcentral/answers/63168-error-message-in-using-mvnrnd-function
-        noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K);
-        for i_K = 1:K
-            %update noise to be sampled from R^-1
-           % first and last points shouldn't change
-%            noise(i_K, 1, :) = [0, 0]; noise(i_K, end, :) = [0, 0];
-%            STOMP_traj{i_K} = [pos_traj, vel_traj] + squeeze(noise(i_K,:,:));
-           STOMP_traj{i_K} = [pos_traj, vel_traj] + noise(i_K,:)';
-           
-           if STOMP_1
-               plot(STOMP_traj{i_K}(:,1), 'ro')
-               hold on
-               plot(STOMP_traj{i_K}(:,2), 'bo')
-               hold off
-               title('STOMP Trajectories')
-           end
-        end
-
-%         cost = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
-        acc_traj = zeros(K, POINTS_IN_TRAJ);
-        cost = zeros(K, POINTS_IN_TRAJ);
-        for i_K = 1:K
-            acc_traj(i_K,:) = [diff(STOMP_traj{i_K}(:,2)); 0];
-            for i_PIJ = 1:POINTS_IN_TRAJ
-                % should this be one cost for all state?
-                cost(i_K, i_PIJ) = S(STOMP_traj{i_K}(i_PIJ, :)) - acc_traj(i_K, i_PIJ) ^ 2; 
-                
-            end
-        end
-        importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_STATES);
-        for i_step = 1:length(STOMP_traj{1}(:,1)) % each point in trajectory
-            for i_K = 1:K % each trajectory
-            % Weight all points sampled during STOMP 
-                for i_state = 1:NUM_OF_STATES
-                    num = cost(i_K, i_step) - min(cost(:, i_step));
-                    den = max(cost(:, i_step)) - min(cost(:, i_step));
-                    importance_weighting(i_K, i_step, i_state) = exp(-H * num/den); 
-                end
-            end
-            
-            %normalize for softmax
-            for i_state = 1:NUM_OF_STATES
-                importance_weighting(:, i_step, i_state) = importance_weighting(:, i_step, i_state) / sum(importance_weighting(:, i_step, i_state));
-            end
-        end
-
-        % add that to original trajectory
-        delta = zeros(POINTS_IN_TRAJ, NUM_OF_STATES);
-        for i_step = 1:length(delta)
-            for i_states = 1:NUM_OF_STATES
-                % delta = sum (prob * noise) for each variation at that point
-                delta(i_step, i_states) = importance_weighting(:, i_step, i_states)' * noise(i_step);
-            end
-        end
-        % Smooth with M = smoothing factor
-        delta_smooth = M * delta;
-        pos_traj_new = pos_traj(1:end) + delta_smooth(:,1);
-        vel_traj_new = vel_traj(1:end) + delta_smooth(:,2);
-       % clip velocities
-       vel_traj_new = max(min(vel_traj_new, max_vel), min_vel);
-
-        if STOMP_2
-            figure(1)
-            hold on
-            plot(pos_traj,vel_traj, 'bo')
-            plot(pos_traj_new,vel_traj_new, 'b*')
-            figure(2)
-            hold on
-            plot(time_array, pos_traj, 'ro', time_array, vel_traj, 'bo')
-            plot(time_array, pos_traj_new, 'r*', time_array, vel_traj_new, 'b*')
-            hold off
-            title('Completed STOMP Trajectory')
-            pause(.1)
-        end
-
-        pos_traj = pos_traj_new;
-        vel_traj = vel_traj_new;
-    end
+    u = STOMP(env, 10);
+    
     % ########## END STOMP ############# %
     
     
@@ -180,6 +92,7 @@ function SafeAlgo(env)
     p_total = 0;
     commanded = zeros(POINTS_IN_TRAJ, NUM_OF_STATES);
     actual = zeros(POINTS_IN_TRAJ, NUM_OF_STATES*3/2);
+    GP_mean = actual; V = actual;
     e = commanded; e_dot = commanded;
     commanded = [pos_traj, vel_traj];
     commanded(1, 2) = vel_traj(1);
@@ -198,7 +111,7 @@ function SafeAlgo(env)
                 e_dot(i_PIJ) = [commanded(i_PIJ, 2) - actual(i_PIJ-1,2)];
                 u(i_PIJ) = controller(e(i_PIJ), e_dot(i_PIJ));
                 % Sample at each time step
-                actual(i_PIJ,3) = model2.query_data_point([actual(i_PIJ-1,1:2), u(i_PIJ)]);
+                [actual(i_PIJ,3), V(i_PIJ)] = model2.query_data_point([actual(i_PIJ-1,1:2), u(i_PIJ)]);
                 % GP was only giving 0 so i am trying this.
                 if abs(actual(i_PIJ,3)) < rand(1) 
                     actual(i_PIJ,3) = actual(i_PIJ,3) + rand(1);
@@ -253,22 +166,13 @@ function SafeAlgo(env)
     else
         hello = 1;
     end
-        % find point with highest info gain
+    
+    % find point with highest info gain
     
     % create trajectory x0 -> xi -> x0 (probably just use STOMP again)
-    
-    
-    
+       
     % update f_cost based on objective (change it somehow)
 
-
-
-    function c = S(state) %this should be part of env?
-        pos = state(1);
-        vel = state(2);
-
-        c = -(end_state(1) - pos)^2 - (end_state(2) - vel)^2; 
-    end
 
 %     function p_safe = rollout(s0, GP, k_ro, sE)
 %         addpath('../OLGP')

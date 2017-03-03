@@ -5,9 +5,12 @@ classdef PendulumEnv
         POINTS_IN_TRAJ                  % points in trajectory
         DELTA_T                         % time step size
         U_MAX                           % max input
+        U_MIN                           % min input
         START_STATE                     % state state
         END_STATE                       % end state
         CUR_STATE                       % current state
+        U_NOM                           % nominal trajectory
+        NUM_OF_INPUTS                   % number of inputs (u's)
         
         f_map                           % function handle to map
         
@@ -21,7 +24,7 @@ classdef PendulumEnv
     end
     
     methods 
-        function obj = PendulumEnv()
+        function obj = PendulumEnv(f_map)
         % creates enviornment
             
             if nargin < 1
@@ -33,8 +36,12 @@ classdef PendulumEnv
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0, 0];
             obj.END_STATE = [pi, 0];
+            obj.U_MAX = 4;
+            obj.U_MIN = -4;
+            obj.NUM_OF_INPUTS = 1;
             
-            obj.NOMINAL_TRAJECTORY = true;
+            
+            obj.NOMINAL_TRAJECTORY = false;
             obj.ENV_NAME = 'Pendulum';
         end
         
@@ -52,8 +59,7 @@ classdef PendulumEnv
                     vel_traj(i_traj) = vel_traj(i_traj)/2; % cheating to make it not go full speed and then slow down
                 end
             end  
-            
-            u = obj.u_trans(pos_traj, vel_traj);
+            obj.U_NOM = obj.u_trans(pos_traj, vel_traj);
             
             
             if obj.NOMINAL_TRAJECTORY
@@ -85,10 +91,24 @@ classdef PendulumEnv
             z_new(1) = mod(z_new(1), 2*pi);
 
             % map check - map can be passed as argument to env_pendulum function
-            if ~env_map(z(1), z_new(1))
+            if ~obj.f_map(z(1), z_new(1))
                 unsafe = 0; % safe zone!
             end
         end
+        
+        function [z_new, unsafe] = forward_traj(obj, z0, u)
+            % given a set of inputs, finding the output physical positions
+            unsafe = zeros(obj.POINTS_IN_TRAJ, 1);
+            z_new = zeros(obj.POINTS_IN_TRAJ, 2);
+            z_new(1,:) = z0;
+            for i_PIJ = 2:obj.POINTS_IN_TRAJ
+                [z, unsafe(i_PIJ)] = obj.forward(z_new(i_PIJ-1,:), u(i_PIJ, :));
+                z_new(i_PIJ,:) = z;
+            end
+        end
+            
+            
+            
         
         function u = u_trans(obj, thetas, theta_dots) %input needed to transition between states
             l = 1;    % [m]        length of pendulum
