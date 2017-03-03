@@ -1,13 +1,14 @@
-function SafeAlgo()
+function SafeAlgo(env)
     close all
+    
+    if nargin < 1
+        env = PendulumEnv(@env_map)
+    end
     
     %#######################################
     %################ TODO #################
     %#######################################
-    % Test out adding points to OGLP
-    
-    % Fix sampling from R_1 for STOMP
-    
+
     % STOMP is definitely not working
         % need to change to u's from pos,vel ***P1***
     
@@ -23,7 +24,9 @@ function SafeAlgo()
     
     % post loop stuff
     
+    % double check coordinate system for pendulum and signs in equations
     
+    % how to get point of maximum info gain?
     
     %#######################################
     %############## CONSTANTS ##############
@@ -32,11 +35,9 @@ function SafeAlgo()
     STEPS = 10;                     % number of steps to linearize for LQG
     
     SAFETY_THRESHOLD = 0.95;        % above this value a policy is considered safe
-    U_MAX = 1;                      % max input
-    POINTS_IN_TRAJ = 100;           % points in trajectory
-    DELTA_T = 0.01;                 % time step size
-    STOMP_NOISE_MEAN = 0;           % mean of noise for trajectory
-    STOMP_NOISE_STD = 0.1;          % noise std for trajectory
+    U_MAX = env.U_MAX;                      % max input
+    POINTS_IN_TRAJ = env.POINTS_IN_TRAJ;           % points in trajectory
+    DELTA_T = env.DELTA_T;                         % time step size
     NUM_OF_STATES = 2;              % number of state variables
     H = 10;                         % STOMP regularizing term
     ROLLOUTS = 10;                  % Number of imaginary rollouts
@@ -63,46 +64,25 @@ function SafeAlgo()
     
     
     
-    % Create Nominal Trajectory
-    % build straight line trajectory
-    u_traj = [];
-    pos_traj = linspace(cur_state(1), end_state(1), POINTS_IN_TRAJ)';
-    vel_traj = linspace(cur_state(2), end_state(2), POINTS_IN_TRAJ)';
-    time_array = DELTA_T * linspace(1, POINTS_IN_TRAJ);
     
-    for i_traj = 2:length(pos_traj) - 1
-        start_traj = pos_traj(i_traj);
-        end_traj = pos_traj(i_traj + 1);
-        vel_start = vel_traj(i_traj-1); 
-        vel_traj(i_traj) = (end_traj - start_traj) * 2 / DELTA_T - vel_start;
-        if i_traj == 2
-            vel_traj(i_traj) = vel_traj(i_traj)/2; % cheating to make it not go full speed and then slow down
-        end
-    end    
-    if NOMINAL_TRAJECTORY
-        figure()
-        plot(pos_traj, 'ro')
-        hold on
-        plot(vel_traj, 'bo')
-        hold off
-        title('Nominal Trajectory')
-    end
+    
+    
+    
+    
+    
+    time_array = DELTA_T * linspace(1, POINTS_IN_TRAJ);
+   
+    
     % ########## STOMP ############# %
     for i = 1:50 % iterations over STOMP
         % Create K trajectories by adding Noise
         STOMP_traj = cell(K,1);
-%         noise = zeros(K, POINTS_I/N_TRAJ, NUM_OF_STATES);
-% If A is a matrix whose columns represent random variables and whose rows 
-% represent observations, C is the covariance matrix with the corresponding
-% column variances along the diagonal.
-%         R_1(R_1 < 10^-4) = 10^-4; %try to fix problem with matrix
-%         R_1_pad = padarray(R_1, [2 2],0 , 'post');
+        
         R_1 = (R_1 + R_1') / 2; %need this for mvnrnd to work - i have no idea why
         % https://www.mathworks.com/matlabcentral/answers/63168-error-message-in-using-mvnrnd-function
-        noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K); % this should work but it doesn't?!
+        noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K);
         for i_K = 1:K
             %update noise to be sampled from R^-1
-%            noise(i_K, :, :) = normrnd(STOMP_NOISE_MEAN, STOMP_NOISE_STD, size([pos_traj, vel_traj]));
            % first and last points shouldn't change
 %            noise(i_K, 1, :) = [0, 0]; noise(i_K, end, :) = [0, 0];
 %            STOMP_traj{i_K} = [pos_traj, vel_traj] + squeeze(noise(i_K,:,:));

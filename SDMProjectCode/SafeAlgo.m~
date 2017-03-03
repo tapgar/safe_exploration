@@ -1,5 +1,9 @@
-function SafeAlgo()
+function SafeAlgo(env)
     close all
+    
+    if nargin < 1
+        env = PendulumEnv(@env_map)
+    end
     
     %#######################################
     %################ TODO #################
@@ -9,7 +13,7 @@ function SafeAlgo()
     % Fix sampling from R_1 for STOMP
     
     % STOMP is definitely not working
-        % need to change to u's from pos,vel
+        % need to change to u's from pos,vel ***P1***
     
     % change environment to class that has map as input
         % return things like 
@@ -33,13 +37,12 @@ function SafeAlgo()
     
     SAFETY_THRESHOLD = 0.95;        % above this value a policy is considered safe
     U_MAX = 1;                      % max input
-    POINTS_IN_TRAJ = 100;           % points in trajectory
-    DELTA_T = 0.01;                 % time step size
-    STOMP_NOISE_MEAN = 0;           % mean of noise for trajectory
-    STOMP_NOISE_STD = 0.1;          % noise std for trajectory
+    POINTS_IN_TRAJ = env.POINTS_IN_TRAJ;           % points in trajectory
+    DELTA_T = 0.1;                  % time step size
     NUM_OF_STATES = 2;              % number of state variables
     H = 10;                         % STOMP regularizing term
     ROLLOUTS = 10;                  % Number of imaginary rollouts
+    SAFETY_THRESHOLD = 0.95;        % Threshold above which to accept trajectory
     
     
     %###########################################
@@ -59,6 +62,11 @@ function SafeAlgo()
     [M, A, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
     max_vel = 4;
     min_vel = -4;
+    
+    
+    
+    
+    
     
     
     
@@ -90,19 +98,16 @@ function SafeAlgo()
     for i = 1:50 % iterations over STOMP
         % Create K trajectories by adding Noise
         STOMP_traj = cell(K,1);
-%         noise = zeros(K, POINTS_I/N_TRAJ, NUM_OF_STATES);
-% If A is a matrix whose columns represent random variables and whose rows 
-% represent observations, C is the covariance matrix with the corresponding
-% column variances along the diagonal.
-%         R_1(R_1 < 10^-4) = 10^-4; %try to fix problem with matrix
-%         R_1_pad = padarray(R_1, [2 2],0 , 'post');
-%         noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1); % this should work but it doesn't?!
+        
+        R_1 = (R_1 + R_1') / 2; %need this for mvnrnd to work - i have no idea why
+        % https://www.mathworks.com/matlabcentral/answers/63168-error-message-in-using-mvnrnd-function
+        noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K);
         for i_K = 1:K
             %update noise to be sampled from R^-1
-           noise(i_K, :, :) = normrnd(STOMP_NOISE_MEAN, STOMP_NOISE_STD, size([pos_traj, vel_traj]));
            % first and last points shouldn't change
 %            noise(i_K, 1, :) = [0, 0]; noise(i_K, end, :) = [0, 0];
-           STOMP_traj{i_K} = [pos_traj, vel_traj] + squeeze(noise(i_K,:,:));
+%            STOMP_traj{i_K} = [pos_traj, vel_traj] + squeeze(noise(i_K,:,:));
+           STOMP_traj{i_K} = [pos_traj, vel_traj] + noise(i_K,:)';
            
            if STOMP_1
                plot(STOMP_traj{i_K}(:,1), 'ro')
@@ -146,7 +151,7 @@ function SafeAlgo()
         for i_step = 1:length(delta)
             for i_states = 1:NUM_OF_STATES
                 % delta = sum (prob * noise) for each variation at that point
-                delta(i_step, i_states) = importance_weighting(:, i_step, i_states)' * noise(:, i_step, i_states);
+                delta(i_step, i_states) = importance_weighting(:, i_step, i_states)' * noise(i_step);
             end
         end
         % Smooth with M = smoothing factor
@@ -262,15 +267,18 @@ function SafeAlgo()
  
 
     % Evaluate Safety of POlicy
-    if 
-    
     % if above threshold -> return policy
-    
-    % else:
-    
-    % find point with highest info gain
+    if  mean(p_safe(:)) > SAFETY_THRESHOLD
+%         output = model;
+          hello = 1;
+    else
+        hello = 1;
+    end
+        % find point with highest info gain
     
     % create trajectory x0 -> xi -> x0 (probably just use STOMP again)
+    
+    
     
     % update f_cost based on objective (change it somehow)
 
