@@ -22,7 +22,7 @@ function u = STOMP(env, K)
     %############## VISUALIZATION ##############
     %###########################################
     STOMP_1            = false; 
-    STOMP_2            = true; %visualize end trajectories
+    STOMP_2            = false; %visualize end trajectories
 
 
 
@@ -143,7 +143,7 @@ function u = STOMP(env, K)
         nom_traj = u_traj_new;
     end
     
-u = u_traj_new;
+u = [u_traj_new, pos_traj_new, vel_traj_new];
 
     function c = S(state, end_state) %this should be part of env?
         pos = state(1);
