@@ -78,7 +78,7 @@ function SafeAlgo()
         % Weight all points sampled during STOMP 
             for i_state = 1:NUM_OF_STATES
                 num = cost(i_K, i_step, i_state) - min(cost(:, i_step, i_state));
-                den = max(cost(:, i_step, i_state)) - min(cost(:, i_step, i_state));
+                den = max(cost(:, i_step, i_state)) - min(cost(:, i_step, i_state) + 0.0000001);
                 importance_weighting(i_K, i_step, i_state) = exp(-H * num/den); 
             end
         end

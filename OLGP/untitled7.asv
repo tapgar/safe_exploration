@@ -17,7 +17,7 @@ gps=fitrgp(x,y);
 
 %hp = struct('y_std',511,'sig_std',2050,'W',0.0362);
 
-hp = struct('y_std',0.1027,'sig_std',13.9978,'W',eye(2));
+hp = struct('y_std',0.1027,'sig_std',3.9978,'W',eye(2));
 %hp = struct('y_std',20,'sig_std',100,'W',2.*eye(2));
 
 model = LocalGP(200, 30, 0.8, hp);
@@ -37,9 +37,14 @@ last_mod_num = 1;
 %i=shuffleRows((1:1:length(y(:,1)))')';
 for i=1:1:length(y(:,1))
    
+    for n = 1:1:num_traj_pts
+        tempmodel = model;
+    [ypred(i) v(i)] = model.query_data_point(x(i,:));
     model = model.add_training_data(x(i,:),y(i,:));
     [ypred(i) v(i)] = model.query_data_point(x(i,:));
+    %calc info gain
     
+    end
     if model.num_models ~= last_mod_num
         display('New model!')
     end
@@ -47,29 +52,29 @@ for i=1:1:length(y(:,1))
 
     
     last_mod_num = model.num_models;
-    if i == 1
-        continue;
-    end
-    for j = 1:1:num_cells
-        for k = 1:1:num_cells
-            [ypred2(j,k) V(j,k)] = model.query_data_point([X1(j,k),X2(j,k)]);
-            %[ypredG(j,k) VG(j,k)] = predict(gps,[X1(j,k),X2(j,k)]);
-        end
-    end
-
-    mesh(X1,X2,ypred2)
-    hold on
-    mesh(X1,X2,ypred2 + 2.*sqrt(V))
-    mesh(X1,X2,ypred2 - 2.*sqrt(V))
-
-    plot3(x(1:i,1),x(1:i,2),y(1:i,1),'.')
-    plot3(x(1:i,1),x(1:i,2),ypred,'r-')
-    for k=1:1:model.num_models
-       plot3(model.model_list{k}.c(1,1),model.model_list{k}.c(1,2),model.model_list{k}.get_prediction(model.model_list{k}.c),'kx') 
-    end
-
-    pause(0.01);
-    hold off
+%     if i == 1
+%         continue;
+%     end
+%     for j = 1:1:num_cells
+%         for k = 1:1:num_cells
+%             [ypred2(j,k) V(j,k)] = model.query_data_point([X1(j,k),X2(j,k)]);
+%             %[ypredG(j,k) VG(j,k)] = predict(gps,[X1(j,k),X2(j,k)]);
+%         end
+%     end
+% 
+%     mesh(X1,X2,ypred2)
+%     hold on
+%     mesh(X1,X2,ypred2 + 2.*sqrt(V))
+%     mesh(X1,X2,ypred2 - 2.*sqrt(V))
+% 
+%     plot3(x(1:i,1),x(1:i,2),y(1:i,1),'.')
+%     plot3(x(1:i,1),x(1:i,2),ypred,'r-')
+%     for k=1:1:model.num_models
+%        plot3(model.model_list{k}.c(1,1),model.model_list{k}.c(1,2),model.model_list{k}.get_prediction(model.model_list{k}.c),'kx') 
+%     end
+% 
+%     pause(0.01);
+%     hold off
 
     
 end
