@@ -9,7 +9,7 @@ load pendulumData
 idx = 1:5:length(X);
 traj = X(idx,:);
 
-%traj = zeros(size(traj));
+traj = zeros(size(traj));
 
 start_pts = 1;
 idx = 1;%randi(round(length(X)/10),start_pts,1);

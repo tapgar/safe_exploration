@@ -42,6 +42,7 @@ for n = 1:1:N
    un = traj(n,nX+1:end);
    [a, b] = GP.linearize(xn,un);
    A = [1, dt; dt*a(1,1), 1+dt*a(2,1)];
+   %b=0;
    B = [0; b*dt];
    L = reshape(L_rec(n,:),nU,nX);
    %COV = A*COV*A' + [0, 0; 0, SIG*dt];
@@ -64,13 +65,16 @@ for n = 1:1:N
       ohno=true; 
    end
    
-   if n == 1
-       F = (A + B*L)';
-       Rn = R;
-       Ln = L;
-       delN = [eye(nX); Ln];
-   else
-       F = (A + B*L)'*F;
+    if n == 1
+        F = (A + B*L)';
+    else
+        F = (A + B*L)'*F;
+    end
+%        Rn = R;
+%        Ln = L;
+%        delN = [eye(nX); Ln];
+%    else
+       
        
        Lj = L;
        delj = [eye(nX); Lj];
@@ -79,7 +83,7 @@ for n = 1:1:N
        [sig, corr] = cov2corr(cov_temp);
        %imagesc(cov_temp)
        cov(n,:) = sig;
-   end
+ %  end
 
 end
 
