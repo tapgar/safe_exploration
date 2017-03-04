@@ -42,7 +42,7 @@ classdef LocalGP
         
         function obj = add_training_data(obj,X,y)
             
-            w_max = 0;
+            w_max = -2;
             for i=1:1:obj.num_models
                w = obj.model_list{i}.calc_dist(X);
                if (w > w_max)
@@ -85,9 +85,10 @@ classdef LocalGP
             
         end
         
-        function plot(obj, x, idx, p2)
+        function plot(obj, x, idx, p,l1,l2)
            
             x = x(:,idx);
+            p2 = p(2);
             
             num_cells = 10;
             
@@ -97,20 +98,22 @@ classdef LocalGP
             ypred = zeros(size(X1));
             V = zeros(size(X1));
             
+            plane = zeros(size(X1));
             
-            
+            [ypt,temp] = obj.query_data_point([p(1),p2,p(3)]);
             for j = 1:1:num_cells
                 for k = 1:1:num_cells
                     [ypred(j,k), V(j,k)] = obj.query_data_point([X1(j,k),p2,X2(j,k)]);
+                    plane(j,k) = ypt + l1*( X1(j,k) - p(1)) + l2*(X2(j,k) - p(3));
                 end
             end
 
             mesh(X1,X2,ypred)
             hold on
-            mesh(X1,X2,ypred + 2.*sqrt(V))
-            mesh(X1,X2,ypred - 2.*sqrt(V))
-            
-            
+%             mesh(X1,X2,ypred + 2.*sqrt(V))
+%             mesh(X1,X2,ypred - 2.*sqrt(V))
+            mesh(X1,X2,plane)
+            plot3(p(1),p(3),ypt,'.r')
         end
         
     

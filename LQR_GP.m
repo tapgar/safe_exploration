@@ -1,4 +1,4 @@
-function [ L_rec, cov, GP ] = LQR_GP( traj, GP, C, D, ALL_DATA_X )
+function [ L_rec, cov, GP, IG ] = LQR_GP( traj, GP, C, D, ALL_DATA_X )
 
 % Inputs
 %   traj - [x,u] per row... N rows
@@ -32,8 +32,9 @@ for n = N:-1:1
     L_rec(n,:) = reshape(L,1,nX*nU);
 end
 
-R = 0.00000000000001.*eye(nX);
+R = 0.000001.*eye(nX);
 COV = zeros(nX);
+IG = zeros(N,1);
 for n = 1:1:N
    [ypred, SIG] = GP.query_data_point(traj(n,:));
    
@@ -43,16 +44,20 @@ for n = 1:1:N
    A = [1, dt; dt*a(1,1), 1+dt*a(2,1)];
    B = [0; b*dt];
    L = reshape(L_rec(n,:),nU,nX);
-   COV = A*COV*A' + [0, 0; 0, SIG*dt];
+   %COV = A*COV*A' + [0, 0; 0, SIG*dt];
+   COV = [0, 0; 0, SIG*dt];
    R = (A + B*L)*R*(A + B*L)' + COV;
    GP = GP.add_training_data(traj(n,:),ypred);
    [ypred, SIG2] = GP.query_data_point(traj(n,:));
    if (SIG2 > SIG)
       wtf=true; 
    end
-%    GP.plot(ALL_DATA_X,[1,3],traj(n,2));
+   
+   IG(n,1) = 0.5*log2(SIG^2/SIG2^2);
+   
+%    GP.plot(ALL_DATA_X,[1,3],traj(n,:),a(1,1),b);
 %    plot3(traj(n,1),traj(n,3),ypred,'.')
-%    pause(0.01)
+%    pause(0.1)
 %    hold off
    
    if n > 40
