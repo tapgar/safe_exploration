@@ -1,19 +1,4 @@
 function check = env_map(s1, s2)
-close all;
-
-% constrain values of s1 and s2 to [0, 2pi]
-s1 = mod(s1, 2*pi);
-s2 = mod(s2, 2*pi);
-
-%make s1 smaller then s2
-desc = sort([s1, s2]);
-s1 = desc(1); s2 = desc(2);
-
-% to deal with wrapping
-if s1 == 0 && s2 ~= 0
-    s1 = s2;
-    s2 = 2*pi - 10^-4;
-end
 
 pendulum_topx = 0;
 pendulum_topy = 1;
@@ -42,9 +27,9 @@ by = r * sin(unsafe) + pendulum_topy;
 %     check = 0;
 % end
 
-if s1 > b2 && s2 > b2 % both larger
+if s1 > b1 && s1 < b2
     check = 1;
-elseif s1 < b1 && s2 < b1 % both smaller
+elseif s2 > b1 && s2 < b2
     check = 1;
 else
     check = 0;
