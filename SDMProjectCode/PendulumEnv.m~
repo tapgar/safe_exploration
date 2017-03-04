@@ -8,6 +8,7 @@ classdef PendulumEnv
         START_STATE                     % state state
         END_STATE                       % end state
         CUR_STATE                       % current state
+        U_NOM                           % nominal trajectory
         
         f_map                           % function handle to map
         
@@ -21,7 +22,7 @@ classdef PendulumEnv
     end
     
     methods 
-        function obj = PendulumEnv()
+        function obj = PendulumEnv(f_map)
         % creates enviornment
             
             if nargin < 1
@@ -52,8 +53,7 @@ classdef PendulumEnv
                     vel_traj(i_traj) = vel_traj(i_traj)/2; % cheating to make it not go full speed and then slow down
                 end
             end  
-            
-            u = obj.u_trans(pos_traj, vel_traj);
+            obj.U_NOM = obj.u_trans(pos_traj, vel_traj);
             
             
             if obj.NOMINAL_TRAJECTORY
@@ -90,6 +90,22 @@ classdef PendulumEnv
             end
         end
         
+        function [z_new_arr, unsafe] = forward_traj(obj, z0, u)
+            % given a set of inputs, finding the output physical positions
+            pos_traj = zeros(obj.POINTS_IN_TRAJ, 1);
+            vel_traj = zeros(obj.POINTS_IN_TRAJ, 1);
+            unsafe = zeros(obj.POINTS_IN_TRAJ, 1);
+            z_new_arr = zeros(obj.POINTS_IN_TRAJ, 2);
+            for i_PIJ = 1:obj.POINTS_IN_TRAJ
+                [z_new, unsafe(i_PIJ)] = env.forward(z(i_PIJ,:), u(i_PIJ, :));
+                pos_traj(i_PIJ) = z_new(1);
+                vel_traj(i_PIJ) = z_new(2);
+                z_new_arr(i_PIJ
+            end
+            
+            
+            
+        
         function u = u_trans(obj, thetas, theta_dots) %input needed to transition between states
             l = 1;    % [m]        length of pendulum
             m = 1;    % [kg]       mass of pendulum
@@ -102,8 +118,10 @@ classdef PendulumEnv
 %             diff_theta_dots = diff(theta
             u = zeros(length(thetas), 1);
             for i = 2:length(thetas)
-                d_theta = 
-                u(i) = u(i-1) + 2/obj.DELTA_T^2 * (thetas(i) - thetas(i-1) - 0.5 * (theta_dots(i) - theta_dots(i-1)) * obj.DELTA_T);
+                d_theta = thetas(i) - thetas(i-1);
+                avg_theta = thetas(i) + thetas(i-1);
+                avg_theta_dot = theta_dots(i) + theta_dots(i-1);
+                u(i) = -u(i-1) + 2/obj.DELTA_T^2 * (d_theta - 0.5 * avg_theta_dot * obj.DELTA_T) + g * sin(avg_theta);
             end
         end
             
