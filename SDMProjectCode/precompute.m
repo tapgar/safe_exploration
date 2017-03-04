@@ -2,8 +2,11 @@
 % input v is equal to the number of rows for matrix M output
 
 function [M, A, R_1] = precompute(v)
+<<<<<<< HEAD
 %<<<<<<< HEAD
 close all;
+=======
+>>>>>>> parent of ce17da9... No real edits
 
 diag = -2 * ones(1,v);
 %=======
