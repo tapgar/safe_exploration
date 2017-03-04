@@ -2,7 +2,7 @@ function SafeAlgo(env)
     close all
     
     if nargin < 1
-        env = PendulumEnv(@env_map)
+        env = PendulumEnv();
     end
     
     %#######################################
