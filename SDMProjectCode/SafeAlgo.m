@@ -10,13 +10,7 @@ function SafeAlgo(env)
     %#######################################
 
     % STOMP is definitely not working
-        % need to change to u's from pos,vel ***P1***
-    
-    % change environment to class that has map as input
-        % return things like 
-            % Nominal Trajectory
-            % points in trajectory
-            %
+        % doesn't work with DI
             
     % roll out
         % make rollout a subfunction so can call it recursively
@@ -205,7 +199,9 @@ function SafeAlgo(env)
                 end
                 actual(i_PIJ,2) = actual(i_PIJ-1,2) + DELTA_T * actual(i_PIJ,3); %velocity update
                 actual(i_PIJ,1) = actual(i_PIJ-1,1) + DELTA_T * (actual(i_PIJ,2) + actual(i_PIJ-1,2))/2; % position update, velocity is taken as average of old and new
-                model2 = model2.add_training_data([actual(i_PIJ-1,1:2), u(i_PIJ)], actual(i_PIJ,3));
+                model2 = model2.add_training_data([actual(i_PIJ-1,1:2), u_rollout(i_PIJ)], actual(i_PIJ,3));
+                [~, GP_vals(i_PIJ, 3)] = model2.query_data_point([actual(i_PIJ-1,1:2), u_rollout(i_PIJ)]);
+                GP_vals(i_PIJ, 4) = 0.5 * log(GP_vals(i_PIJ, 2)^2 - GP_vals(i_PIJ, 3)^2); %KL distance between Gaussians
                 % check if it is safe
                 p = env_map(actual(i_PIJ-1,1), actual(i_PIJ,1));
                 if p == 0
