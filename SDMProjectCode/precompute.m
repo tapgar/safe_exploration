@@ -17,6 +17,6 @@ A = B + C + D;
 
 R_1 = inv(A' * A);
 
-M = R_1./max(R_1,[],1)./v; %scale so that max value is 1/N per column
+M = R_1./(ones(v,1)*max(R_1,[],1))./v; %scale so that max value is 1/N per column
 
 end
