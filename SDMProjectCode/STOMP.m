@@ -23,9 +23,8 @@ function u = STOMP(env, K)
     %###########################################
     STOMP_1            = false; 
     STOMP_2            = false; %visualize end trajectories
-
-
-
+    
+    
     
     % K is number of noisy trajectories to try
     % env is the enviornment that we test over
@@ -42,11 +41,6 @@ function u = STOMP(env, K)
         % https://www.mathworks.com/matlabcentral/answers/63168-error-message-in-using-mvnrnd-function
         noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K);
         for i_K = 1:K
-            %update noise to be sampled from R^-1
-           % first and last points shouldn't change
-%            noise(i_K, 1, :) = [0, 0]; noise(i_K, end, :) = [0, 0];
-%            STOMP_traj{i_K} = [pos_traj, vel_traj] + squeeze(noise(i_K,:,:));
-%            STOMP_traj{i_K} = [pos_traj, vel_traj] + noise(i_K,:)';
             STOMP_traj{i_K} = nom_traj + noise(i_K,:)';
             z0 = [0,0]; %initial condition
             [z_new, p_unsafe] = env.forward_traj(z0, STOMP_traj{i_K});

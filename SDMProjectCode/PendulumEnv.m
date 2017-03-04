@@ -23,7 +23,7 @@ classdef PendulumEnv
         
         
         % ##### PLOTTING ########## %
-        NOMINAL_TRAJECTORY
+        NOMINAL_TRAJECTORY = false;
         
     end
     
