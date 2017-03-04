@@ -20,7 +20,6 @@ function SafeAlgo(env)
     
     % double check coordinate system for pendulum and signs in equations
     
-    % how to get point of maximum info gain?
     
     %#######################################
     %############## CONSTANTS ##############
@@ -41,9 +40,7 @@ function SafeAlgo(env)
     %###########################################
     %############## VISUALIZATION ##############
     %###########################################
-    NOMINAL_TRAJECTORY = false;
-    STOMP_1            = false;
-    STOMP_2            = false;
+    VIS_ROLLOUTS = false;
     
     
     %#######################################
@@ -52,20 +49,13 @@ function SafeAlgo(env)
     cur_state = [0, 0];                              % current state
     end_state = [pi, 0];                             % goal state
     
-    
-    
-    
-    
-    
-    
-    
-    
+
     time_array = DELTA_T * linspace(1, POINTS_IN_TRAJ);
    % ########## NOMINAL TRAJECTORY ########## %
    env = env.NominalTrajectory();
     
     % ########## STOMP ############# %
-    u = STOMP(env, 10);
+    u_stomp = STOMP(env, 10);
     
     % ######## CONTROLLER ######### %
         % Build Feedback Controller -- LQG
@@ -88,10 +78,8 @@ function SafeAlgo(env)
     commanded = zeros(POINTS_IN_TRAJ, NUM_OF_STATES);
     actual = zeros(POINTS_IN_TRAJ, NUM_OF_STATES*3/2);
     e = commanded; e_dot = commanded;
-    commanded = [pos_traj, vel_traj];
-    commanded(1, 2) = vel_traj(1);
-    commanded(2, 2) = vel_traj(2);
-    u = zeros(POINTS_IN_TRAJ, 1);
+    commanded = u_stomp(:,2:3);
+    u_rollout = u_stomp(:,1);
     model = model.add_training_data([0,0,0], 0);
     actual(1,1:2) = commanded(1,:);
     for i_PIJ_real = 2:POINTS_IN_TRAJ
@@ -100,19 +88,17 @@ function SafeAlgo(env)
         fprintf('Point: %.f ', i_PIJ_real)
         for i_ro = 1:ROLLOUTS
             p_total = 0;
+            GP_vals = zeros(POINTS_IN_TRAJ, 4); %[mean, Vbef, Vafter, KLDistance]
             for i_PIJ = i_PIJ_real:POINTS_IN_TRAJ
                 e(i_PIJ) = [commanded(i_PIJ, 1) - actual(i_PIJ-1,1)];
                 e_dot(i_PIJ) = [commanded(i_PIJ, 2) - actual(i_PIJ-1,2)];
                 u(i_PIJ) = controller(e(i_PIJ), e_dot(i_PIJ));
                 % Sample at each time step
-                actual(i_PIJ,3) = model2.query_data_point([actual(i_PIJ-1,1:2), u(i_PIJ)]);
-                % GP was only giving 0 so i am trying this.
-                if abs(actual(i_PIJ,3)) < rand(1) 
-                    actual(i_PIJ,3) = actual(i_PIJ,3) + rand(1);
-                end
-                actual(i_PIJ,2) = actual(i_PIJ-1,2) + DELTA_T * actual(i_PIJ,3); %velocity update
-                actual(i_PIJ,1) = actual(i_PIJ-1,1) + DELTA_T * (actual(i_PIJ,2) + actual(i_PIJ-1,2))/2; % position update, velocity is taken as average of old and new
+                [GP_vals(i_PIJ,1),  GP_vals(i_PIJ,2)] = model2.query_data_point([actual(i_PIJ-1,1:2), u_rollout(i_PIJ)]);
+                actual(i_PIJ,3) = GP_vals(i_PIJ,1) + GP_vals(i_PIJ,2) * randn;
                 model2 = model2.add_training_data([actual(i_PIJ-1,1:2), u_rollout(i_PIJ)], actual(i_PIJ,3));
+                actual(i_PIJ,2) = actual(i_PIJ-1,2) + DELTA_T * actual(i_PIJ,3); %velocity update
+                actual(i_PIJ,1) = actual(i_PIJ-1,1) + DELTA_T * actual(i_PIJ-1,2) + 1/2 * actual(i_PIJ,3) * DELTA_T^2; % position update
                 [~, GP_vals(i_PIJ, 3)] = model2.query_data_point([actual(i_PIJ-1,1:2), u_rollout(i_PIJ)]);
                 GP_vals(i_PIJ, 4) = 0.5 * log(GP_vals(i_PIJ, 2)^2 - GP_vals(i_PIJ, 3)^2); %KL distance between Gaussians
                 % check if it is safe
@@ -127,26 +113,14 @@ function SafeAlgo(env)
         p_safe(i_ro) = p_total / POINTS_IN_TRAJ;
         fprintf('Rollout %.f, Steps %.f: %.3f \n', i_ro, i_PIJ, p_safe(i_ro))
         end
-%         hold on
-%         plot(actual(:,1),'color',rand(1,3),'marker','o')
-%         plot(commanded(:,1),'bo')
-%         plot(actual(:,2),'r*')
-%         plot(commanded(:,2),'b*')
-%         hello = 1;
+        if VIS_ROLLOUTS
+            hold on
+            plot(actual(:,1),'color',rand(1,3),'marker','o')
+            plot(commanded(:,1),'bo')
+            plot(actual(:,2),'r*')
+            plot(commanded(:,2),'b*')
+        end
     end
-    
-%     gp_x_1 = linspace(min(actual(:,1)), max(actual(:,1)), 100);
-%     gp_x_2 = linspace(min(actual(:,2)), max(actual(:,2)), 100);
-%     [gp_X_1, gp_X_2] = meshgrid(gp_x_1, gp_x_2);
-%     ypred = zeros(100,100);
-%     V = zeros(100,100);
-%     for j = 1:100
-%         for k = 1:100
-%             [ypred(j,k), V(j,k)]  = model.query_data_point([gp_X_1(j,k), gp_X_2(j,k), 1]);
-%         end
-%     end
-%     figure()
-%     plot3(gp_x_1, gp_x_2, ypred)
     % cost of trajectory
     % ############# END Imagination Rollouts ################ %
         
@@ -156,13 +130,13 @@ function SafeAlgo(env)
 
     % Evaluate Safety of POlicy
     % if above threshold -> return policy
-    if  mean(p_safe(:)) > SAFETY_THRESHOLD
-%         output = model;
-          hello = 1;
-    else
-        hello = 1;
-    end
-        % find point with highest info gain
+%     if  mean(p_safe(:)) > SAFETY_THRESHOLD
+% %         output = model;
+%           hello = 1;
+%     else
+%         hello = 1;
+%     end
+    % find point with highest info gain
     
     % create trajectory x0 -> xi -> x0 (probably just use STOMP again)
     
@@ -178,17 +152,6 @@ function SafeAlgo(env)
 
         c = -(end_state(1) - pos)^2 - (end_state(2) - vel)^2; 
     end
-
-%     function p_safe = rollout(s0, GP, k_ro, sE)
-%         addpath('../OLGP')
-%         p_total = 0;
-%        for n = 1:POINTS_IN_TRAJ
-%           sample = GP(x, controller(x));
-%           [s_next, p] = env_map(sample);
-%           p_total = p_total + p;
-%        end
-%        p_safe = p_total / POINTS_IN_TRAJ;
-%     end
 
 
 end
