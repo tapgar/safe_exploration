@@ -20,10 +20,14 @@ function u = STOMP(env, K)
     NUM_OF_INPUTS = env.NUM_OF_INPUTS;
     DELTA_T = env.DELTA_T;
     H = 10;                                             % STOMP regularizing term
-    time_array = env.DELTA_T * linspace(1, env.POINTS_IN_TRAJ);
+    time_array = env.DELTA_T * linspace(1, 1, env.POINTS_IN_TRAJ);
     nom_traj = env.U_NOM;                           % nominal initial trajectory
     noise_factor = 1;
+<<<<<<< HEAD
     NOISE_COOLING = 0.99;                          % cooling rate for noise
+=======
+    noise_cooling = 0.99;                          % cooling rate for noise
+>>>>>>> origin/master
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
     Q_prev_arr = 0;
@@ -36,8 +40,8 @@ function u = STOMP(env, K)
     %############## VISUALIZATION ##############
     %###########################################
     STOMP_1            = false; 
-    STOMP_2            = false; %visualize end trajectories
-    STOMP_3            = true;  %viusalize Q over time
+    STOMP_2            = true; %visualize end trajectories
+    STOMP_3            = false;  %viusalize Q over time
     
     
     
@@ -48,11 +52,12 @@ function u = STOMP(env, K)
     STOMP_traj = cell(K,1);
     POINTS_IN_TRAJ = env.POINTS_IN_TRAJ;
     [M, A, R, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
+   
+    %R_1 = R_1./max(max(R_1));
     
-
     while  Q_conv_counter < Q_conv % iterations over STOMP
         
-        R_1 = (R_1 + R_1') / 2; %need this for mvnrnd to work - i have no idea why
+        %R_1 = (R_1 + R_1') / 2; %need this for mvnrnd to work - i have no idea why
         % https://www.mathworks.com/matlabcentral/answers/63168-error-message-in-using-mvnrnd-function
         noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K) * noise_factor;
         for i_K = 1:K
@@ -81,11 +86,33 @@ function u = STOMP(env, K)
         for i_K = 1:K
             for i_PIJ = 1:POINTS_IN_TRAJ
                 % should this be one cost for all state?
-                cost(i_K, i_PIJ) = S(STOMP_traj{i_K}(i_PIJ, :), env.END_STATE);
+                
+                traj = STOMP_traj{i_K}(:, 1);
+                cu = (diff([0;diff(traj)./DELTA_T;0])./DELTA_T).^2;
+%                 if i_K == 1
+%                     cost(i_K,i_PIJ) = 0;
+%                 else
+%                     cost(i_K,i_PIJ) = 1000;
+%                 end
+                cost(i_K, i_PIJ) = sum(cu);
+                %cost(i_K, i_PIJ) = STOMP_COST(STOMP_traj{i_K}(i_PIJ, :), env.END_STATE) + 0.5 * STOMP_traj{i_K}(i_PIJ:end, 1)' * R(i_PIJ:end,i_PIJ:end) * STOMP_traj{i_K}(i_PIJ:end, 1);
                 
             end
+%             figure(1)
+%             plot(traj)
+%             hold on
+%             figure(2)
+%             plot(diff(traj))
+%             hold on
+%             
+%             pos_traj = STOMP_traj{i_K}(:, 1);
+            
         end
-        
+%         figure(1)
+%         hold off
+%         pause(0.01)
+%         figure(2)
+%         hold off
         importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_INPUTS);
         for i_step = 1:length(STOMP_traj{1}(:,1)) % each point in trajectory
             for i_K = 1:K % each trajectory
@@ -108,13 +135,20 @@ function u = STOMP(env, K)
         delta = zeros(POINTS_IN_TRAJ, 1);
         for i_step = 1:length(delta) % this can be done with a single matrix operation
             % delta = sum (prob * noise) for each variation at that point
-            delta(i_step) = sum(importance_weighting(:, i_step) .* noise(i_step));
+            delta(i_step) = sum(importance_weighting(:, i_step) .* noise(:,i_step));
 
         end
+%         figure; plot(STOMP_traj{1,1}(:,1))
+%         hold on; plot(nom_traj+delta)
         % Smooth with M = smoothing factor
         delta_smooth = M * delta;
         
-        u_traj_new = env.U_NOM + delta_smooth;
+        u_traj_new = nom_traj + delta_smooth;
+%         plot(u_traj_new)
+%         figure(1)
+%         hold on
+%         plot(u_traj_new,'k','LineWidth',5)
+%         hold off
 %         u_traj_new = max(min(u_traj_new, env.U_MAX), env.U_MIN);
 %         [z_new, p_new] = env.forward_traj(env.START_STATE, u_traj_new);
 %         pos_traj_new = z_new(:,1);
@@ -127,19 +161,24 @@ function u = STOMP(env, K)
             figure(1)
             clf
             subplot(3,1,1) % plot all trajectories compared to original
-            plot(env.U_NOM, 'ro')
+            plot(nom_traj, 'ro')
             hold on
             for i_K = 1:K
                 plot(STOMP_traj{i_K}(:,1))
             end
             title('Noisy Trajectories')
             hold off
+            
+            test = A*nom_traj;
+            
             subplot(3,1,2) % plot all pos vs vel
             hold on
             for i_K = 1:K
-                plot(STOMP_traj{i_K}(:, 1)) % pos
+                %plot(STOMP_traj{i_K}(:, 1)) % pos
                 plot(STOMP_traj{i_K}(:, 2)) % vel
             end
+            
+            plot(diff(nom_traj)./env.DELTA_T,'r-')
             title('Position & Velocity vs Step')
             subplot(3,1,3)
             hold on
@@ -151,10 +190,17 @@ function u = STOMP(env, K)
         end
 
         nom_traj = u_traj_new;
+<<<<<<< HEAD
         noise_factor = NOISE_COOLING * noise_factor;
         Q_traj = sum(S([u_traj_new, vel_traj_new], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
         if Q_diff < Q_LIMIT  % 1% decrease
+=======
+        noise_factor = noise_cooling * noise_factor;
+        Q_traj = sum(STOMP_COST([u_traj_new, vel_traj_new], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
+        Q_diff = abs(Q_traj - Q_prev)/Q_prev;
+        if Q_diff < 0.000001  %1% decrease
+>>>>>>> origin/master
             Q_conv_counter = Q_conv_counter + 1;
         else
             Q_conv_counter = 0;
@@ -170,10 +216,4 @@ function u = STOMP(env, K)
     
 u = [u_traj_new, vel_traj_new, acc_traj_new];
 
-    function c = S(state, end_state) %this should be part of env?
-        pos = state(:,1);
-        vel = state(:,2);
-        % penalized for being far from goal and having high velocity
-        c = (end_state(1) - pos).^2 ; %+ (end_state(2) - vel).^2; 
-    end
 end
