@@ -55,7 +55,7 @@ classdef PendulumEnv
             obj.ENV_NAME = 'Pendulum';
         end
         
-        function obj = NominalTrajectory(obj) % Create Nominal Trajectory
+        function obj = NominalTrajectory_old(obj) % Create Nominal Trajectory
             % build straight line trajectory
             pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
             vel_traj = linspace(obj.START_STATE(2), obj.END_STATE(2), obj.POINTS_IN_TRAJ)';
@@ -79,6 +79,12 @@ classdef PendulumEnv
                 hold off
                 title('Nominal Trajectory')
             end
+        end
+        
+        function obj = NominalTrajectory(obj) % Create Nominal Trajectory
+            % build straight line trajectory
+            pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
+            obj.U_NOM = pos_traj;
         end
         
         function [dz] = getAccel(obj, z, u)

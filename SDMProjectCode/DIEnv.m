@@ -46,18 +46,19 @@ classdef DIEnv
             % build straight line trajectory
             u_traj = [];
             pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
-            vel_traj = linspace(obj.START_STATE(2), obj.END_STATE(2), obj.POINTS_IN_TRAJ)';
-            for i_traj = 2:length(pos_traj) - 1
-                start_traj = pos_traj(i_traj);
-                end_traj = pos_traj(i_traj + 1);
-                vel_start = vel_traj(i_traj); 
-                vel_traj(i_traj) = (end_traj - start_traj) * 2 / obj.DELTA_T - vel_start;
-                if i_traj == 2
-                    vel_traj(i_traj) = vel_traj(i_traj)/2; % cheating to make it not go full speed and then slow down
-                end
-            end  
-            obj.U_NOM = obj.u_trans(pos_traj, vel_traj);
-            
+%             vel_traj = linspace(obj.START_STATE(2), obj.END_STATE(2), obj.POINTS_IN_TRAJ)';
+%             for i_traj = 2:length(pos_traj) - 1
+%                 start_traj = pos_traj(i_traj);
+%                 end_traj = pos_traj(i_traj + 1);
+%                 vel_start = vel_traj(i_traj); 
+%                 vel_traj(i_traj) = (end_traj - start_traj) * 2 / obj.DELTA_T - vel_start;
+%                 if i_traj == 2
+%                     vel_traj(i_traj) = vel_traj(i_traj)/2; % cheating to make it not go full speed and then slow down
+%                 end
+%             end  
+%             obj.U_NOM = obj.u_trans(pos_traj, vel_traj);
+            obj.U_NOM = pos_traj;
+%             
             
             if obj.NOMINAL_TRAJECTORY
                 figure()
