@@ -77,8 +77,11 @@ classdef LocalGP
                 [ybar(i,:), V(i,:)] = obj.model_list{i}.get_prediction(X);
                 
             end
-            w = w.^4;
-            y = sum(repmat(w,1,length(ybar(1,:))).*ybar)./sum(w);
+            %w = w.^4;
+            if sum(w) < 0.00000001
+               ofuck=true; 
+            end
+            y = (sum(repmat(w,1,length(ybar(1,:))).*ybar)+0.00000001)./(sum(w)+0.00000001);
             v = min(V);
 %             [m i] = max(w);
 %             y = ybar(i,:);

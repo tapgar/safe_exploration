@@ -21,6 +21,7 @@ classdef PendulumEnv
         b
         dt
         
+        maxQdd
         
         % ##### PLOTTING ########## %
         NOMINAL_TRAJECTORY = false;
@@ -40,8 +41,8 @@ classdef PendulumEnv
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0, 0];
             obj.END_STATE = [pi, 0];
-            obj.U_MAX = 3;
-            obj.U_MIN = -3;
+            obj.U_MAX = 2.5;
+            obj.U_MIN = -2.5;
             obj.NUM_OF_INPUTS = 1;
             
             obj.l = 1;
@@ -49,6 +50,7 @@ classdef PendulumEnv
             obj.g = 9.806;
             obj.b = 0.01;
             obj.dt = 0.01;
+            obj.maxQdd = 1;
             
             
             obj.NOMINAL_TRAJECTORY = false;
@@ -127,7 +129,7 @@ classdef PendulumEnv
         end
             
             
-        function [X, y] = plot(obj, traj, cov, x, policy)
+        function [X, y] = plot(obj, traj, cov, x, policy, invGP)
            
             
             
@@ -137,20 +139,32 @@ classdef PendulumEnv
                    0.1, 0;...
                    -0.1, 0];
 
-            X = zeros((length(traj(:,1))-1)*5,3);
+            iters = 5;
+            X = zeros((length(traj(:,1))-1)*iters,3);
             y = zeros(length(X),1);
             c=1;
             for i = 1:1:length(traj(:,1))-1
-                
-                for j = 1:1:5
+                limiting = false;
+                K = reshape(policy(i,:),1,2);
+                for j = 1:1:iters
                     xe = (traj(i,1:2) - x)';
-                    K = reshape(policy(i,:),1,2);
-                    u = -K*xe + traj(i,3);
-                    u = min(obj.U_MAX,max(obj.U_MIN,u));
+                    qd = xe(1)/(iters*obj.dt);
+                    qdd = (qd - x(2))/(iters*obj.dt);
+                    qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
+                    [u, ~] = invGP.query_data_point([x,qdd]);
+                    u = -K*xe + u;
+                    unew = min(obj.U_MAX,max(obj.U_MIN,u));
+                    if unew ~= u
+                        u = unew;
+                        limiting = true;
+                    end
                     y(c,1) = obj.getAccel(x,u);
+                    if abs(y(c,1)) > obj.maxQdd
+                        obj.maxQdd = y(c,1);
+                    end
                     X(c,:) = [x, u];
                     
-                    [x, us] = obj.forward(x,u);
+                    [x, ~] = obj.forward(x,u);
                     c = c + 1;
                 end
                 th = traj(i,1)+pi;
@@ -179,8 +193,11 @@ classdef PendulumEnv
                 th = x(1,1)+pi;
                 R = [cos(th), -sin(th); sin(th), cos(th)];
                 npts = pts*R;
-                plot(npts(:,1),npts(:,2),'g');
-                
+                if ~limiting
+                    plot(npts(:,1),npts(:,2),'g');
+                else
+                    plot(npts(:,1),npts(:,2),'r');
+                end
                 xlim([-2.5, 2.5])
                 ylim([-1.2, 1.2])
                 pause(0.1)
