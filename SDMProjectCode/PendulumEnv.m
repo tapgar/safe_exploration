@@ -133,6 +133,16 @@ classdef PendulumEnv
             end
             
         end
+        
+        
+        function qdd = getTargetAccel(obj, targ, xe)
+           
+            qd = xe(1)/obj.DELTA_T;
+            qdd = (qd - targ(2))./obj.DELTA_T;
+            qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
+            
+        end
+        
             
             
         function [X, y] = plot(obj, traj, cov, x, policy, invGP)
@@ -145,6 +155,8 @@ classdef PendulumEnv
                    0.1, 0;...
                    -0.1, 0];
 
+            %%%NOTE iters=5 was because of the trajectory i was using to
+            %%%test this really should be DT/dt
             iters = 5;
             X = zeros((length(traj(:,1))-1)*iters,3);
             y = zeros(length(X),1);
