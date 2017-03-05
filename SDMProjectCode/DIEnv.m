@@ -29,7 +29,7 @@ classdef DIEnv
             end
             
             obj.f_map = f_map;   % Map is a function that returns safety in a map
-            obj.POINTS_IN_TRAJ = 100;
+            obj.POINTS_IN_TRAJ = 10;
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0, 0];
             obj.END_STATE = [9, 0];
