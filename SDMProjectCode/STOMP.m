@@ -23,12 +23,13 @@ function u = STOMP(env, K)
     time_array = env.DELTA_T * linspace(1, env.POINTS_IN_TRAJ);
     nom_traj = env.U_NOM;                           % nominal initial trajectory
     noise_factor = 1;
-    noise_cooling = 0.9;                          % cooling rate for noise
+    NOISE_COOLING = 0.99;                          % cooling rate for noise
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
     Q_prev_arr = 0;
     Q_conv_counter = 0;                     % Q convergence limit
     Q_conv = 5;
+    Q_LIMIT = 0.001;                        % Percent change in Q to be considered converging
     
 
     %###########################################
@@ -150,10 +151,10 @@ function u = STOMP(env, K)
         end
 
         nom_traj = u_traj_new;
-        noise_factor = noise_cooling * noise_factor;
+        noise_factor = NOISE_COOLING * noise_factor;
         Q_traj = sum(S([u_traj_new, vel_traj_new], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
-        if Q_diff < 0.01  %1% decrease
+        if Q_diff < Q_LIMIT  % 1% decrease
             Q_conv_counter = Q_conv_counter + 1;
         else
             Q_conv_counter = 0;
