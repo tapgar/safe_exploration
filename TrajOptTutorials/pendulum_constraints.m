@@ -1,4 +1,4 @@
-function [ c, ceq ] = double_integrator_constraints( x )
+function [ c, ceq ] = pendulum_constraints( x, GP )
     global gridN
     
     
@@ -10,7 +10,8 @@ function [ c, ceq ] = double_integrator_constraints( x )
     % Get the states / inputs out of the vector
     positions = x(2:1+gridN);
     vels      = x(2+gridN:1+gridN*2);
-    u      = x(2+gridN*2:end);
+    u      = x(2+gridN*2:1+gridN*3);
+    del      = x(2+gridN*3:end);
     
     % Constrain initial position and velocity to be zero
     ceq = [positions(1); vels(1)];
@@ -21,10 +22,14 @@ function [ c, ceq ] = double_integrator_constraints( x )
         x_n = [positions(i+1); vels(i+1)];
         % The time derivative of the state at the beginning of the time
         % interval
-        qdd = ( u(i) - 0.01*vels(i) - 9.81*sin(positions(i))/2 ) / (1/3); 
+        [qdd, vr] = GP.query_data_point([positions(i), vels(i), u(i)]);
+        qdd = qdd + del(i)*sqrt(vr);
+        
         xdot_i = [vels(i); qdd];
         
-        qdd = ( u(i+1) - 0.01*vels(i+1) - 9.81*sin(positions(i+1))/2 ) / (1/3);
+        [qdd, vr] = GP.query_data_point([positions(i+1), vels(i+1), u(i+1)]);
+        qdd = qdd + del(i+1)*sqrt(vr);
+
         % The time derivative of the state at the end of the time interval
         xdot_n = [vels(i+1); qdd];
         
