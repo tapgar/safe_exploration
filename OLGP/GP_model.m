@@ -49,25 +49,36 @@ classdef GP_model
            
             if (obj.num_pts == obj.max_num_pts)
                 
-                %calc info gain for this sample
-                infG = obj.ComputeInfoGain(newX,newY);
-                if (infG > GainLimit)
+                
+                dist = obj.calc_dist(newX);
+                idx = randi(obj.num_pts);
+                x = obj.X(idx,:);
+                dist2 = obj.calc_dist(x);
+                if (dist > dist2)
                    
-                    temp = [linspace(1,obj.num_pts,obj.num_pts)', obj.X_time./sum(obj.X_time)];
-                    t = rand - 1e-20;
-                    shuffTemp = shuffleRows(temp);
-                    sig = cumsum(shuffTemp(:,2));
-                    tempidx = min(find(t < sig));
-                    idx = shuffTemp(tempidx,1);
-                    idx = randi(obj.num_pts);
                     obj.X(idx,:) = newX;
                     obj.y(idx,:) = newY;
-                    
-                    obj.X_time(idx,1) = 0;
-                    
                     obj = obj.ComputeKernel(newX, idx);
-                    
                 end
+                %calc info gain for this sample
+%                 infG = obj.ComputeInfoGain(newX,newY);
+%                 if (infG > GainLimit)
+%                    
+%                     temp = [linspace(1,obj.num_pts,obj.num_pts)', obj.X_time./sum(obj.X_time)];
+%                     t = rand - 1e-20;
+%                     shuffTemp = shuffleRows(temp);
+%                     sig = cumsum(shuffTemp(:,2));
+%                     tempidx = min(find(t < sig));
+%                     idx = shuffTemp(tempidx,1);
+%                     idx = randi(obj.num_pts);
+%                     obj.X(idx,:) = newX;
+%                     obj.y(idx,:) = newY;
+%                     
+%                     obj.X_time(idx,1) = 0;
+%                     
+%                     obj = obj.ComputeKernel(newX, idx);
+%                     
+%                 end
                 
             else
                 

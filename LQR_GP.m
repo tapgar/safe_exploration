@@ -1,7 +1,7 @@
-function [ L_rec, cov, GP, IG ] = LQR_GP( traj, GP, C, D, ALL_DATA_X )
+function [ L_rec, cov, GP, invGP, IG ] = LQR_GP( env, traj, GP, invGP, C, D )
 
 % Inputs
-%   traj - [x,u] per row... N rows
+%   traj - [q,qd,qdd] per row... N + 2 rows
 %   GP - gaussian process class
 %   C - quadratic state cost
 %   D - quadratic action cost
@@ -10,7 +10,7 @@ function [ L_rec, cov, GP, IG ] = LQR_GP( traj, GP, C, D, ALL_DATA_X )
 %   pi - time varying feedback gain
 %   cov - covariance ellipse at each step
 
-N = length(traj(:,1))-1; %exclude goal point at end
+N = length(traj(:,1))-2; %exclude goal point at end
 nX = length(C);
 nU = length(D);
 
@@ -18,72 +18,66 @@ L_rec = zeros(N,nX*nU);
 
 cov=zeros(N,nX+nU);
 
-dt = 0.1;
+dt = env.DELTA_T;
 
 S = C;
-for n = N:-1:1
-    xn = traj(n+1,1:nX);
-    un = traj(n+1,nX+1:end);
-    [a, b] = GP.linearize(xn,un);
+for n = N+1:-1:2
+    
+    qdd_targ = (traj(n-1,1:env.TRAJ_DIMS)' - 2.*traj(n,1:env.TRAJ_DIMS)' + traj(n+1,1:env.TRAJ_DIMS)')./(env.DELTA_T^2);
+    qd_targ = (traj(n+1,1:env.TRAJ_DIMS)' - traj(n-1,1:env.TRAJ_DIMS)')./(2.*env.DELTA_T);
+    q_targ = traj(n,1:env.TRAJ_DIMS)';
+    
+    [u, ~] = invGP.query_data_point([q_targ', qd_targ', qdd_targ']);
+    
+    [a, b] = GP.linearize([q_targ', qd_targ'],u);
     A = [1, dt; dt*a(1,1), 1+dt*a(2,1)];
     B = [0; b*dt];
     L = -((B'*S*B + D)^-1)*B'*S*A;
     S = C + A'*S*A + A'*S*B*L;
-    L_rec(n,:) = reshape(L,1,nX*nU);
+    L_rec(n-1,:) = reshape(L,1,nX*nU);
 end
 
 R = 0.000001.*eye(nX);
-COV = zeros(nX);
 IG = zeros(N,1);
-for n = 1:1:N
-   [ypred, SIG] = GP.query_data_point(traj(n,:));
-   
-   xn = traj(n,1:nX);
-   un = traj(n,nX+1:end);
-   [a, b] = GP.linearize(xn,un);
+
+for n = 2:1:N+1
+    
+    p_idx = n-1;
+    
+    
+    qdd_targ = (traj(n-1,1:env.TRAJ_DIMS)' - 2.*traj(n,1:env.TRAJ_DIMS)' + traj(n+1,1:env.TRAJ_DIMS)')./(env.DELTA_T^2);
+    qd_targ = (traj(n+1,1:env.TRAJ_DIMS)' - traj(n-1,1:env.TRAJ_DIMS)')./(2.*env.DELTA_T);
+    q_targ = traj(n,1:env.TRAJ_DIMS)';
+    
+    [u, ~] = invGP.query_data_point([q_targ', qd_targ', qdd_targ']);
+    
+    
+   [qdd_actual, SIG] = GP.query_data_point([q_targ', qd_targ', u']);
+
+   [a, b] = GP.linearize([q_targ', qd_targ'],u);
    A = [1, dt; dt*a(1,1), 1+dt*a(2,1)];
-   %b=0;
    B = [0; b*dt];
-   L = reshape(L_rec(n,:),nU,nX);
-   %COV = A*COV*A' + [0, 0; 0, SIG*dt];
+   L = reshape(L_rec(p_idx,:),nU,nX);
    COV = [0, 0; 0, SIG*dt];
    R = (A + B*L)*R*(A + B*L)' + COV;
-   GP = GP.add_training_data(traj(n,:),ypred);
-   [ypred, SIG2] = GP.query_data_point(traj(n,:));
+   
+   GP = GP.add_training_data([q_targ', qd_targ', u'],qdd_actual');
+   invGP = invGP.add_training_data([q_targ', qd_targ',qdd_actual'],u);
+
+   [~, SIG2] = GP.query_data_point([q_targ', qd_targ', u']);
+   
    if (SIG2 > SIG)
       wtf=true; 
    end
    
-   IG(n,1) = 0.5*log2(SIG^2/SIG2^2);
-   
-%    GP.plot(ALL_DATA_X,[1,3],traj(n,:),a(1,1),b);
-%    plot3(traj(n,1),traj(n,3),ypred,'.')
-%    pause(0.1)
-%    hold off
-   
-   if n > 40
-      ohno=true; 
-   end
-   
-    if n == 1
-        F = (A + B*L)';
-    else
-        F = (A + B*L)'*F;
-    end
-%        Rn = R;
-%        Ln = L;
-%        delN = [eye(nX); Ln];
-%    else
+   IG(p_idx,1) = 0.5*log2(SIG^2/SIG2^2);
        
        
-       Lj = L;
-       delj = [eye(nX); Lj];
-%        cov_temp = delN*Rn*F*delj';
-       cov_temp = delj*R*delj';
-       [sig, corr] = cov2corr(cov_temp);
-       %imagesc(cov_temp)
-       cov(n,:) = sig;
- %  end
+   Lj = L;
+   delj = [eye(nX); Lj];
+   cov_temp = delj*R*delj';
+   [sig, ~] = cov2corr(cov_temp);
+   cov(p_idx,:) = sig;
 
 end
 

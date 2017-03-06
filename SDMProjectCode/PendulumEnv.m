@@ -11,6 +11,7 @@ classdef PendulumEnv
         CUR_STATE                       % current state
         U_NOM                           % nominal trajectory
         NUM_OF_INPUTS                   % number of inputs (u's)
+        TRAJ_DIMS                       % number of dimensions
         
         f_map                           % function handle to map
         
@@ -36,13 +37,16 @@ classdef PendulumEnv
                 f_map = @env_map;
             end
             
+            
+            
             obj.f_map = f_map;   % Map is a function that returns safety in a map
-            obj.POINTS_IN_TRAJ = 100;
+            obj.POINTS_IN_TRAJ = 50;
+            obj.TRAJ_DIMS = 1;
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0, 0];
             obj.END_STATE = [pi, 0];
-            obj.U_MAX = 2.5;
-            obj.U_MIN = -2.5;
+            obj.U_MAX = 3.0;
+            obj.U_MIN = -3.0;
             obj.NUM_OF_INPUTS = 1;
             
             obj.l = 1;
@@ -72,7 +76,7 @@ classdef PendulumEnv
             end  
             obj.U_NOM = obj.u_trans(pos_traj, vel_traj);
             
-            
+           
             if obj.NOMINAL_TRAJECTORY
                 figure()
                 plot(pos_traj, 'ro')
@@ -87,6 +91,8 @@ classdef PendulumEnv
             % build straight line trajectory
             pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
             obj.U_NOM = pos_traj;
+            load pendulumData
+            obj.U_NOM = X(1:8:end-1,1);
         end
         
         function [dz] = getAccel(obj, z, u)
@@ -223,6 +229,97 @@ classdef PendulumEnv
 
             end
             
+        end
+        
+        function [X, y, obj] = run_sim(obj, traj, cov, x, policy, invGP, SHOWPLOT)
+            
+           
+            iters = obj.DELTA_T/obj.dt;
+            X = zeros((length(traj(:,1))-2)*iters,3);
+            y = zeros(length(X),1);
+            c=1;
+            for n = 2:1:length(traj(:,1))-1
+                
+                
+                p_idx = n-1;
+                
+                
+                limiting = false;
+                K = reshape(policy(p_idx,:),1,2);
+                for j = 1:1:iters
+                    
+                    xe = (traj(n,1:2) - x)';
+                    qd = xe(1)/(iters*obj.dt);
+                    qdd = (qd - x(2))/(iters*obj.dt);
+                    qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
+                    
+                    [u, ~] = invGP.query_data_point([x,qdd]);
+                    u = -K*xe + u;
+                    unew = min(obj.U_MAX,max(obj.U_MIN,u));
+                    if unew ~= u
+                        
+                        limiting = true;
+                    end
+                    u = unew;
+                    
+                    y(c,1) = obj.getAccel(x,u);
+                    if abs(y(c,1)) > obj.maxQdd
+                        obj.maxQdd = y(c,1);
+                    end
+                    X(c,:) = [x, u];
+                    
+                    [x, ~] = obj.forward(x,u);
+                    c = c + 1;
+                end
+                
+                if SHOWPLOT
+                    figure(4)
+                    clf;
+                    pts = [-0.1, 0;...
+                           -0.1, obj.l;...
+                           0.1, obj.l;...
+                           0.1, 0;...
+                           -0.1, 0];
+                    
+                    th = traj(n,1)+pi;
+                    R = [cos(th), -sin(th); sin(th), cos(th)];
+                    npts = pts*R;
+
+                    s = sqrt(cov(p_idx,1))*1.96;
+                    ths = linspace(-s+th,s+th,100)';
+                    cpts = zeros(length(ths),2);
+                    for p = 1:1:length(ths)
+                        R = [cos(ths(p)), -sin(ths(p)); sin(ths(p)), cos(ths(p))];
+                        r = [0; obj.l];
+                        cpts(p,:) = (r'*R);
+                    end
+                    plot(npts(:,1),npts(:,2));
+                    hold on
+                    plot(cpts(:,1),cpts(:,2),'r');
+
+                    s = sqrt(cov(p_idx,2))*1.96;
+                    ths = [0, -s + obj.l; 0, s + obj.l];
+                    R = [cos(th), -sin(th); sin(th), cos(th)];
+                    cpts = ths*R;
+                    plot(cpts(:,1),cpts(:,2),'r');
+
+
+                    th = x(1,1)+pi;
+                    R = [cos(th), -sin(th); sin(th), cos(th)];
+                    npts = pts*R;
+                    if ~limiting
+                        plot(npts(:,1),npts(:,2),'g');
+                    else
+                        plot(npts(:,1),npts(:,2),'r');
+                    end
+                    xlim([-2.5, 2.5])
+                    ylim([-1.2, 1.2])
+                    pause(0.1)
+                    hold off
+                end
+
+            end
+
         end
         
         function u = u_trans(obj, thetas, theta_dots) %input needed to transition between states           

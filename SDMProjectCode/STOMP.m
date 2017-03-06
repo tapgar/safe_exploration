@@ -1,4 +1,4 @@
-function u = STOMP(env, K)
+function u = STOMP(env, K, GP, invGP, cost_func)
     % env should have initial trajectories.  Only using physical position
     % of points (q)
     
@@ -20,10 +20,10 @@ function u = STOMP(env, K)
     NUM_OF_INPUTS = env.NUM_OF_INPUTS;
     DELTA_T = env.DELTA_T;
     H = 10;                                             % STOMP regularizing term
-    time_array = env.DELTA_T * linspace(1, 1, env.POINTS_IN_TRAJ);
+    time_array = env.DELTA_T * linspace(0, env.POINTS_IN_TRAJ, 2+env.POINTS_IN_TRAJ);
     nom_traj = env.U_NOM;                           % nominal initial trajectory
-    noise_factor = 1;
-    noise_cooling = 0.99;                          % cooling rate for noise
+    noise_factor = 2000/env.POINTS_IN_TRAJ;
+    noise_cooling = 0.9;                          % cooling rate for noise
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
     Q_prev_arr = 0;
@@ -46,24 +46,16 @@ function u = STOMP(env, K)
     % Create K trajectories by adding Noise
     STOMP_traj = cell(K,1);
     POINTS_IN_TRAJ = env.POINTS_IN_TRAJ;
-    [M, A, R, R_1] = precompute(POINTS_IN_TRAJ);   % Smoothing array for STOMP
-   
-    %R_1 = R_1./max(max(R_1));
-    
+    [M, A, R, R_1] = precompute(POINTS_IN_TRAJ, env.DELTA_T);   % Smoothing array for STOMP  
     while  Q_conv_counter < Q_conv % iterations over STOMP
-        
-        %R_1 = (R_1 + R_1') / 2; %need this for mvnrnd to work - i have no idea why
-        % https://www.mathworks.com/matlabcentral/answers/63168-error-message-in-using-mvnrnd-function
+        %sample according to covariance matrix... R_1 issues fixed
         noise = mvnrnd(zeros(1, POINTS_IN_TRAJ), R_1, K) * noise_factor;
+        
+        %add noise to K trajectories
         for i_K = 1:K
             STOMP_traj{i_K} = nom_traj + noise(i_K,:)';
-%             z0 = [0,0]; %initial condition
-%             [z_new, p_unsafe] = env.forward_traj(z0, STOMP_traj{i_K});
-%             pos_traj_init = z_new(:,1);
-%             vel_traj_init = z_new(:,2);
             vel_traj_nom = diff(STOMP_traj{i_K}) / DELTA_T; % differentiating to get velocity
             acc_traj_nom = diff(vel_traj_nom) / DELTA_T;    % differentiating to get acceleration
-%             STOMP_traj{i_K} = [STOMP_traj{i_K}, z_new];
             STOMP_traj{i_K} = [STOMP_traj{i_K}, [vel_traj_nom; 0], [acc_traj_nom; 0; 0]]; %padding arrays to be same length
 
            if STOMP_1
@@ -76,38 +68,12 @@ function u = STOMP(env, K)
                pause(0.1)
            end
         end
-        
         cost = zeros(K, POINTS_IN_TRAJ);
         for i_K = 1:K
-            for i_PIJ = 1:POINTS_IN_TRAJ
-                % should this be one cost for all state?
-                
-                traj = STOMP_traj{i_K}(:, 1);
-                cu = (diff([0;diff(traj)./DELTA_T;0])./DELTA_T).^2;
-%                 if i_K == 1
-%                     cost(i_K,i_PIJ) = 0;
-%                 else
-%                     cost(i_K,i_PIJ) = 1000;
-%                 end
-                cost(i_K, i_PIJ) = sum(cu);
-                %cost(i_K, i_PIJ) = STOMP_COST(STOMP_traj{i_K}(i_PIJ, :), env.END_STATE) + 0.5 * STOMP_traj{i_K}(i_PIJ:end, 1)' * R(i_PIJ:end,i_PIJ:end) * STOMP_traj{i_K}(i_PIJ:end, 1);
-                
-            end
-%             figure(1)
-%             plot(traj)
-%             hold on
-%             figure(2)
-%             plot(diff(traj))
-%             hold on
-%             
-%             pos_traj = STOMP_traj{i_K}(:, 1);
-            
+            traj = [env.START_STATE(1:env.TRAJ_DIMS); STOMP_traj{i_K}(:, 1); env.END_STATE(1:env.TRAJ_DIMS)];
+            %[policy, cov, ~, ~] = LQR_GP(traj,GP,10.*eye(2),1,[]);
+            cost(i_K,:) = cost_func(1, 2.2, GP, invGP, traj, env);        
         end
-%         figure(1)
-%         hold off
-%         pause(0.01)
-%         figure(2)
-%         hold off
         importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_INPUTS);
         for i_step = 1:length(STOMP_traj{1}(:,1)) % each point in trajectory
             for i_K = 1:K % each trajectory
@@ -129,43 +95,36 @@ function u = STOMP(env, K)
         % will need to do something if there are multiple inputs
         delta = zeros(POINTS_IN_TRAJ, 1);
         for i_step = 1:length(delta) % this can be done with a single matrix operation
-            % delta = sum (prob * noise) for each variation at that point
             delta(i_step) = sum(importance_weighting(:, i_step) .* noise(:,i_step));
-
         end
-%         figure; plot(STOMP_traj{1,1}(:,1))
-%         hold on; plot(nom_traj+delta)
+
         % Smooth with M = smoothing factor
         delta_smooth = M * delta;
         
         u_traj_new = nom_traj + delta_smooth;
-%         plot(u_traj_new)
-%         figure(1)
-%         hold on
-%         plot(u_traj_new,'k','LineWidth',5)
-%         hold off
-%         u_traj_new = max(min(u_traj_new, env.U_MAX), env.U_MIN);
-%         [z_new, p_new] = env.forward_traj(env.START_STATE, u_traj_new);
-%         pos_traj_new = z_new(:,1);
-%         vel_traj_new = z_new(:,2);
-        vel_traj_new = [diff(u_traj_new); 0];
-        acc_traj_new = [diff(vel_traj_new); 0];
+        traj = [env.START_STATE(1:env.TRAJ_DIMS); u_traj_new; env.END_STATE(1:env.TRAJ_DIMS)];
+        qdd_targ = zeros(POINTS_IN_TRAJ+2,1);
+        qd_targ = qdd_targ;
+        for k = 2:1:POINTS_IN_TRAJ+1
+            qdd_targ(k,1) = (traj(k-1,1:env.TRAJ_DIMS)' - 2.*traj(k,1:env.TRAJ_DIMS)' + traj(k+1,1:env.TRAJ_DIMS)')./(env.DELTA_T^2);
+            qd_targ(k,1) = (traj(k+1,1:env.TRAJ_DIMS)' - traj(k-1,1:env.TRAJ_DIMS)')./(2.*env.DELTA_T);
+        end
+%         vel_traj_new = [0; diff(u_traj_new)./DELTA_T];
+%         acc_traj_new = [0; diff(vel_traj_new)./DELTA_T];
         
 
         if STOMP_2
             figure(1)
             clf
             subplot(3,1,1) % plot all trajectories compared to original
-            plot(nom_traj, 'ro')
+            plot(time_array, traj, 'k', 'LineWidth', 3)
             hold on
             for i_K = 1:K
-                plot(STOMP_traj{i_K}(:,1))
+                plot(time_array,[env.START_STATE(1:env.TRAJ_DIMS); STOMP_traj{i_K}(:,1); env.END_STATE(1:env.TRAJ_DIMS)])
             end
             title('Noisy Trajectories')
             hold off
-            
-            test = A*nom_traj;
-            
+                       
             subplot(3,1,2) % plot all pos vs vel
             hold on
             for i_K = 1:K
@@ -177,8 +136,7 @@ function u = STOMP(env, K)
             title('Position & Velocity vs Step')
             subplot(3,1,3)
             hold on
-%             plot(time_array, pos_traj, 'ro', time_array, vel_traj, 'bo')
-            plot(time_array, u_traj_new, 'r*', time_array, vel_traj_new, 'b*', time_array, acc_traj_new, 'g*')
+            plot(time_array, traj, 'r*', time_array, qd_targ, 'b*', time_array, qdd_targ, 'g*')
             hold off
             title('Completed STOMP Trajectory (Vel, Pos)')
             pause(.1)
@@ -186,9 +144,9 @@ function u = STOMP(env, K)
 
         nom_traj = u_traj_new;
         noise_factor = noise_cooling * noise_factor;
-        Q_traj = sum(STOMP_COST([u_traj_new, vel_traj_new], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
+        Q_traj = sum(STOMP_COST([traj, qd_targ], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
-        if Q_diff < 0.000001  %1% decrease
+        if Q_diff < 0.00005  %1% decrease
             Q_conv_counter = Q_conv_counter + 1;
         else
             Q_conv_counter = 0;
@@ -202,6 +160,7 @@ function u = STOMP(env, K)
         end
     end
     
-u = [u_traj_new, vel_traj_new, acc_traj_new];
+    
+    u = [traj, qd_targ, qdd_targ];
 
 end
