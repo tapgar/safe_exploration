@@ -23,11 +23,7 @@ function u = STOMP(env, K)
     time_array = env.DELTA_T * linspace(1, 1, env.POINTS_IN_TRAJ);
     nom_traj = env.U_NOM;                           % nominal initial trajectory
     noise_factor = 1;
-<<<<<<< HEAD
-    NOISE_COOLING = 0.99;                          % cooling rate for noise
-=======
     noise_cooling = 0.99;                          % cooling rate for noise
->>>>>>> origin/master
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
     Q_prev_arr = 0;
@@ -66,10 +62,17 @@ function u = STOMP(env, K)
 %             [z_new, p_unsafe] = env.forward_traj(z0, STOMP_traj{i_K});
 %             pos_traj_init = z_new(:,1);
 %             vel_traj_init = z_new(:,2);
-            vel_traj_nom = diff(STOMP_traj{i_K}) / DELTA_T; % differentiating to get velocity
-            acc_traj_nom = diff(vel_traj_nom) / DELTA_T;    % differentiating to get acceleration
+%             vel_traj_nom = diff(STOMP_traj{i_K}) / DELTA_T; % differentiating to get velocity
+%             acc_traj_nom = diff(vel_traj_nom) / DELTA_T;    % differentiating to get acceleration
+            
+            
+            vel_traj_nom = cdiff(STOMP_traj{i_K}, DELTA_T); % differentiating to get velocity
+            acc_traj_nom = cdiff(vel_traj_nom, DELTA_T);    % differentiating to get acceleration
+            
+            
 %             STOMP_traj{i_K} = [STOMP_traj{i_K}, z_new];
-            STOMP_traj{i_K} = [STOMP_traj{i_K}, [vel_traj_nom; 0], [acc_traj_nom; 0; 0]]; %padding arrays to be same length
+%             STOMP_traj{i_K} = [STOMP_traj{i_K}, [vel_traj_nom; 0], [0; acc_traj_nom;0]];
+            STOMP_traj{i_K} = [STOMP_traj{i_K}, vel_traj_nom, acc_traj_nom]; %padding arrays to be same length
 
            if STOMP_1
                plot(STOMP_traj{i_K}(:,1), 'ro')
@@ -88,13 +91,15 @@ function u = STOMP(env, K)
                 % should this be one cost for all state?
                 
                 traj = STOMP_traj{i_K}(:, 1);
-                cu = (diff([0;diff(traj)./DELTA_T;0])./DELTA_T).^2;
+%                 cu = (diff([0;diff(traj)./DELTA_T;0])./DELTA_T).^2;
+                cu = STOMP_traj{i_K}(:,3).^2;
 %                 if i_K == 1
 %                     cost(i_K,i_PIJ) = 0;
 %                 else
 %                     cost(i_K,i_PIJ) = 1000;
 %                 end
-                cost(i_K, i_PIJ) = sum(cu);
+%                 cost(i_K, i_PIJ) = sum(cu);
+                cost(i_K, i_PIJ) = cu(i_PIJ);
                 %cost(i_K, i_PIJ) = STOMP_COST(STOMP_traj{i_K}(i_PIJ, :), env.END_STATE) + 0.5 * STOMP_traj{i_K}(i_PIJ:end, 1)' * R(i_PIJ:end,i_PIJ:end) * STOMP_traj{i_K}(i_PIJ:end, 1);
                 
             end
@@ -108,11 +113,6 @@ function u = STOMP(env, K)
 %             pos_traj = STOMP_traj{i_K}(:, 1);
             
         end
-%         figure(1)
-%         hold off
-%         pause(0.01)
-%         figure(2)
-%         hold off
         importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_INPUTS);
         for i_step = 1:length(STOMP_traj{1}(:,1)) % each point in trajectory
             for i_K = 1:K % each trajectory
@@ -120,6 +120,9 @@ function u = STOMP(env, K)
                 for i_input = 1:NUM_OF_INPUTS
                     num = cost(i_K, i_step) - min(cost(:, i_step));
                     den = max(cost(:, i_step)) - min(cost(:, i_step));
+                    if den == 0
+                        den = den + 10^-8;
+                    end
                     importance_weighting(i_K, i_step, i_input) = exp(-H * num/den); 
                 end
             end
@@ -153,8 +156,10 @@ function u = STOMP(env, K)
 %         [z_new, p_new] = env.forward_traj(env.START_STATE, u_traj_new);
 %         pos_traj_new = z_new(:,1);
 %         vel_traj_new = z_new(:,2);
-        vel_traj_new = [diff(u_traj_new); 0];
-        acc_traj_new = [diff(vel_traj_new); 0];
+%         vel_traj_new = [diff(u_traj_new); 0];
+%         acc_traj_new = [diff(vel_traj_new); 0];
+        vel_traj_new = cdiff(u_traj_new, DELTA_T);
+        acc_traj_new = cdiff(vel_traj_new, DELTA_T);
         
 
         if STOMP_2
@@ -162,6 +167,7 @@ function u = STOMP(env, K)
             clf
             subplot(3,1,1) % plot all trajectories compared to original
             plot(nom_traj, 'ro')
+            plot(u_traj_new, 'ko')
             hold on
             for i_K = 1:K
                 plot(STOMP_traj{i_K}(:,1))
@@ -177,30 +183,27 @@ function u = STOMP(env, K)
                 %plot(STOMP_traj{i_K}(:, 1)) % pos
                 plot(STOMP_traj{i_K}(:, 2)) % vel
             end
-            
-            plot(diff(nom_traj)./env.DELTA_T,'r-')
-            title('Position & Velocity vs Step')
+            plot(cdiff(u_traj_new))
+%             plot(cdiff(nom_traj)./env.DELTA_T,'r-')
+            title('Velocity')
             subplot(3,1,3)
             hold on
 %             plot(time_array, pos_traj, 'ro', time_array, vel_traj, 'bo')
-            plot(time_array, u_traj_new, 'r*', time_array, vel_traj_new, 'b*', time_array, acc_traj_new, 'g*')
+%             plot(time_array, u_traj_new, 'r*', time_array, STOMP_traj{i_K}(:,2), 'b*', time_array, STOMP_traj{i_K}(:,3), 'g*')
+%             for i_K = 1:K
+%                 plot(STOMP_traj{i_K}(:,3))
+%             end
+            plot(acc_traj_new)
             hold off
-            title('Completed STOMP Trajectory (Vel, Pos)')
+            title('Accelerations')
             pause(.1)
         end
 
         nom_traj = u_traj_new;
-<<<<<<< HEAD
-        noise_factor = NOISE_COOLING * noise_factor;
-        Q_traj = sum(S([u_traj_new, vel_traj_new], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
-        Q_diff = abs(Q_traj - Q_prev)/Q_prev;
-        if Q_diff < Q_LIMIT  % 1% decrease
-=======
         noise_factor = noise_cooling * noise_factor;
         Q_traj = sum(STOMP_COST([u_traj_new, vel_traj_new], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
         if Q_diff < 0.000001  %1% decrease
->>>>>>> origin/master
             Q_conv_counter = Q_conv_counter + 1;
         else
             Q_conv_counter = 0;
