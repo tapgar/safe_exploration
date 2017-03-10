@@ -97,21 +97,21 @@ M = mean(samples, 1);
 
 [evec, eval] = eig(C);
 r = diag(eval);
-[x, y, z] = ellipsoid(M(1), M(2), M(3), max(r), max(r), max(r));
+[x, y, z] = ellipsoid(m(1), m(2), m(3), max(r), max(r), max(r));
 t = surf(x, y, z);
-hold on;
 t.FaceColor = 'y';
 t.FaceAlpha = 0.2;
 
 for i = 1:length(samples)
     p = SimpleCovarianceChecker(C, M, samples(i,:));
-    if p == 1
-        plot3(samples(i,1), samples(i,2), samples(i,3),'ro')
-    elseif p == 0
-        plot3(samples(i,1), samples(i,2), samples(i,3),'bo')
-    end
-end
-hold off
+    if p == true
+        plot3(samples(i,1), samples(i,1)(2), point1(3),'ro')
+        
+    
+    
+
+
+
 %% Simple circle
 m = [0, 0];
 c = [1, 0;
