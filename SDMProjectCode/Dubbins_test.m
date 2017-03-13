@@ -3,7 +3,8 @@
 dt = 0.1;
 u = ones(100,1) * [1, 0];
 q0 = [0, 0, 0, 0, 0];
-[q] = dubbinsDynamics(u, q0, dt);
+D = DubbinsEnv(@dubbins_map);
+[q] = D.forward_traj(q0, u);
 
 plot(q(:,1), q(:, 2), 'ro')
 hold on
@@ -11,12 +12,18 @@ hold on
 
 %% Simple Turn - shows unconstrained dynamics issue
 dt = 0.1;
-u = ones(10000,1) * [0, 0.1];
-q0 = [0, 0, 0, 1, 0];
-q = dubbinsDynamics(u, q0, dt);
+u = ones(100,1) * [.2, 0.00];
+q0 = [0, 0, 0, 1.9, 0.1];
+D = DubbinsEnv(@dubbins_map);
+[q, c] = D.forward_traj(q0, u);
 hold on
 for i_u = 1:length(u)
-    plot(q(i_u,1), q(i_u, 2), 'ro')
+    if c(i_u) == 1
+        col = 'ro';
+    else
+        col = 'bo';
+    end
+    plot(q(i_u,1), q(i_u, 2), col)
     pause(0.01)
 end
 hold off
@@ -24,9 +31,8 @@ hold off
 dt = 0.1;
 u = ones(100,1) * [1, 0.1];
 u(50:end,2) = -0.1;
-q0 = [0, 0, 0];
-q0d = [0, 0];
-[q, qd] = dubbinsDynamics(u, q0, q0d, dt);
+q0 = [0, 0, 0, 0, 0];
+q = dubbinsDynamics(u, q0, dt);
 
 plot(q(:,1), q(:, 2), 'ro')
 
@@ -35,9 +41,8 @@ dt = 0.1;
 t = 0:dt:10-dt;
 u = ones(100,1) * [1, 0.1];
 u(:,2) = sin(t);
-q0 = [0, 0, 0];
-q0d = [0, 0];
-[q, qd] = dubbinsDynamics(u, q0, q0d, dt);
+q0 = [0, 0, 0, 0, 0];
+q = dubbinsDynamics(u, q0, dt);
 
 plot(q(:,1), q(:, 2), 'ro')
 
