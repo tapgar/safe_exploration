@@ -76,7 +76,7 @@ classdef DubbinsEnv
             q_array(1,:) = z0(1:3);
             qd_array(1,:) = z0(4:5);
             
-            yd_max = .15;
+            yd_max = obj.f_map(q_array(1,1:2));
             fric_S = 0.1; fric_D = 0.1;
             ydd = 0; yd = 0;
             % for each input
@@ -123,6 +123,9 @@ classdef DubbinsEnv
                 % theta_turn = thetad_old + u2 * dt
                 qd_array(i, 1) = qd_array(i - 1, 1) + u(i - 1, 1) * obj.DELTA_T;
                 qd_array(i, 2) = qd_array(i - 1, 2) + u(i - 1, 2) * obj.DELTA_T;
+                
+                % updating friction
+                yd_max = obj.f_map(q_array(i, 1:2));
             end
             
             z_new = [q_array, qd_array];
