@@ -101,5 +101,20 @@ D = DubbinsEnv(@dubbins_map);
 D = D.NominalTrajectory();
 plot(D.U_NOM(:,1), D.U_NOM(:,2))
 
-
+%% Test ICE
+dt = 0.1;
+u = ones(100,1) * [.5, 0];
+q0 = [0, 0, 0, 0, 0.3];
+D = DubbinsEnv(@dubbins_map);
+[q, c] = D.forward_traj(q0, u);
+hold on
+for i_u = 1:length(u)
+    if c(i_u) == 1
+        col = 'ro';
+    else
+        col = 'bo';
+    end
+    plot(q(i_u,1), q(i_u, 2), col)
+    pause(0.01)
+end
 hold off
