@@ -1,6 +1,4 @@
-function [ c, ceq ] = pendulum_constraints( x, GP )
-    global gridN
-    
+function [ c, ceq ] = pendulum_constraints( x, GP, gridN )
     
     % No nonlinear inequality constraint needed
     c = [];

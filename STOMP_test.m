@@ -2,13 +2,14 @@ clear
 close all
 
 hp = struct('y_std',0.01,'sig_std',1.39978,'W',0.1.*eye(3));
-GP = LocalGP(200, 10, 0.5, hp);
-invGP = LocalGP(200, 10, 0.5, hp);
+GP = LocalGP(20, 50, 0.5, hp);
+hp = struct('y_std',0.01,'sig_std',1.39978,'W',0.05.*eye(3));
+invGP = LocalGP(20, 50, 0.5, hp);
 
 
 env = PendulumEnv();
-env = env.NominalTrajectory();
-start_pts = 20;
+
+start_pts = 10;
 [x,y] = env.generateLocalData([0,0,0],start_pts);
 
 for i = 1:1:start_pts
@@ -17,17 +18,25 @@ for i = 1:1:start_pts
 end
 
 
+env = env.NominalTrajectory(GP);
 
 
 for k = 1:1:10
 
-    u = STOMP(env, 30, GP, invGP, @lqg_traj_cost_func);
+    figure(6)
+    plot(env.U_NOM);
+    
+    u = [env.U_NOM,env.V_NOM];%STOMP(env, 30, GP, invGP, @lqg_traj_cost_func);
 
+    %u = STOMP(env, 30, GP, invGP, @lqg_traj_cost_func);
+
+    
     traj = u;% [env.START_STATE(1:env.TRAJ_DIMS); u(:,1); env.END_STATE(1:env.TRAJ_DIMS)];
     
     [ L_rec, cov, ~, ~, IG ] = LQR_GP( env, traj(:,1), GP, invGP, 100.*eye(2),1);
     
-    env.U_NOM = traj(2:end-1,1);
+    
+    %env.U_NOM = traj(2:end-1,1);
 % 
 %     qd = zeros(length(u),1);
 %     qdd = zeros(length(u),1);
@@ -38,18 +47,20 @@ for k = 1:1:10
 %     end
     
     x = [traj(1,1),0];
-    [Xr, yr, env] = env.run_sim(traj(:,1:2), cov, x, L_rec, invGP, true);
+    [GP, invGP, env] = env.run_sim(traj(:,1:2), cov, x, L_rec, GP, invGP, true);
 
     
-    for i = 1:1:length(Xr(:,1))
-       GP = GP.add_training_data(Xr(i,:),yr(i,:)); 
-       invGP = invGP.add_training_data([Xr(i,1:2),yr(i,:)],Xr(i,end));
-    end
+%     for i = 1:1:length(Xr(:,1))
+%        GP = GP.add_training_data(Xr(i,:),yr(i,:)); 
+%        invGP = invGP.add_training_data([Xr(i,1:2),yr(i,:)],Xr(i,end));
+%     end
     
     
     figure(3);
     plot(u(:,1),u(:,2))
     hold on;
+    
+    env = env.NominalTrajectory(GP);
 
 end
 

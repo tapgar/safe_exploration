@@ -22,7 +22,7 @@ function u = STOMP(env, K, GP, invGP, cost_func)
     H = 10;                                             % STOMP regularizing term
     time_array = env.DELTA_T * linspace(0, env.POINTS_IN_TRAJ, 2+env.POINTS_IN_TRAJ);
     nom_traj = env.U_NOM;                           % nominal initial trajectory
-    noise_factor = 2000/env.POINTS_IN_TRAJ;
+    noise_factor = 1000/env.POINTS_IN_TRAJ;
     noise_cooling = 0.9;                          % cooling rate for noise
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
@@ -146,7 +146,7 @@ function u = STOMP(env, K, GP, invGP, cost_func)
         noise_factor = noise_cooling * noise_factor;
         Q_traj = sum(STOMP_COST([traj, qd_targ], env.END_STATE)) + 0.5 * u_traj_new' * R * u_traj_new;
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
-        if Q_diff < 0.00005  %1% decrease
+        if Q_diff < 0.000005  %1% decrease
             Q_conv_counter = Q_conv_counter + 1;
         else
             Q_conv_counter = 0;

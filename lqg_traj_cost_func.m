@@ -34,7 +34,7 @@ for k = 2:1:length(traj(:,1))-1
     qdd_sq_err(p_idx,1) = (qdd_targ - qdd_actual)'*(qdd_targ - qdd_actual);
 end
 
-cost = 1000.*u_cost + 0.0.*qdd_sq_err + 0.0000001.*randn(env.POINTS_IN_TRAJ,1);
+cost = 0.*u_cost + 1.0.*qdd_sq_err + 0.0000001.*randn(env.POINTS_IN_TRAJ,1);
 
 end
 
