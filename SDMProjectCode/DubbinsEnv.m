@@ -74,7 +74,7 @@ classdef DubbinsEnv
         
         function [z_new, fric, unsafe] = forward_traj(obj, z0, u)
             clip = @(in, ub, lb) min(max(in, lb), ub);
-            
+
         % given an inputs, initial state
         % z = [x0, y0, theta0, v0, thetad0]
         % u = [vd, thetadd]
@@ -158,6 +158,7 @@ classdef DubbinsEnv
             
             % map check
             [fric, unsafe] = obj.f_map(z_new);
+
             
         end
         

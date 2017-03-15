@@ -10,6 +10,8 @@ classdef PendulumEnv
         END_STATE                       % end state
         CUR_STATE                       % current state
         U_NOM                           % nominal trajectory
+        V_NOM
+        t_NOM
         NUM_OF_INPUTS                   % number of inputs (u's)
         TRAJ_DIMS                       % number of dimensions
         
@@ -23,6 +25,12 @@ classdef PendulumEnv
         dt
         
         maxQdd
+        
+        dircolPts
+        
+        x_start
+        v_start
+        u_start
         
         % ##### PLOTTING ########## %
         NOMINAL_TRAJECTORY = false;
@@ -40,13 +48,13 @@ classdef PendulumEnv
             
             
             obj.f_map = f_map;   % Map is a function that returns safety in a map
-            obj.POINTS_IN_TRAJ = 50;
+            obj.POINTS_IN_TRAJ = 60;
             obj.TRAJ_DIMS = 1;
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0, 0];
             obj.END_STATE = [pi, 0];
-            obj.U_MAX = 3.0;
-            obj.U_MIN = -3.0;
+            obj.U_MAX = 2.0;
+            obj.U_MIN = -2.0;
             obj.NUM_OF_INPUTS = 1;
             
             obj.l = 1;
@@ -55,6 +63,14 @@ classdef PendulumEnv
             obj.b = 0.01;
             obj.dt = 0.01;
             obj.maxQdd = 1;
+            
+            
+            
+            obj.dircolPts = 20;
+            obj.x_start = linspace(obj.START_STATE(1),obj.END_STATE(1),obj.dircolPts)';
+            obj.v_start = linspace(obj.START_STATE(2),obj.END_STATE(2),obj.dircolPts)';
+            obj.u_start = ones(obj.dircolPts, 1)*obj.U_MAX;
+            
             
             
             obj.NOMINAL_TRAJECTORY = false;
@@ -87,12 +103,61 @@ classdef PendulumEnv
             end
         end
         
-        function obj = NominalTrajectory(obj) % Create Nominal Trajectory
+        function obj = NominalTrajectory(obj, GP) % Create Nominal Trajectory
             % build straight line trajectory
-            pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
-            obj.U_NOM = pos_traj;
-            load pendulumData
-            obj.U_NOM = X(1:8:end-1,1);
+%             pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
+%             obj.U_NOM = pos_traj;
+%             load pendulumData
+%             obj.U_NOM = X(1:8:end-1,1);
+
+              traj = obj.DirColTrajectory(GP);
+              obj.U_NOM = interp(traj(2:1+obj.dircolPts),obj.POINTS_IN_TRAJ/obj.dircolPts);
+              obj.V_NOM = interp(traj(2+obj.dircolPts:1+obj.dircolPts*2),obj.POINTS_IN_TRAJ/obj.dircolPts);
+              obj.t_NOM = interp(traj(2+obj.dircolPts*2:1+obj.dircolPts*3),obj.POINTS_IN_TRAJ/obj.dircolPts);
+              
+              obj.DELTA_T = traj(1)/obj.POINTS_IN_TRAJ;
+              obj.x_start = traj(2:obj.dircolPts+1);
+              obj.v_start = traj(obj.dircolPts+2:1+obj.dircolPts*2);
+              obj.u_start = traj(obj.dircolPts*2+2:1+obj.dircolPts*3);
+        end
+        
+        function optimal = DirColTrajectory(obj, GP)
+           
+            gridN = obj.dircolPts;
+
+            time_min = @(x) (x(1) + 2.*sum(x(2 + gridN * 3 : end).^2));
+
+            % The initial parameter guess; 1 second, gridN positions, gridN velocities,
+            % gridN accelerations
+            x0 = [10;...
+                  obj.x_start;...
+                  obj.v_start;...
+                  obj.u_start;...
+                  zeros(gridN, 1)];
+
+            % No linear inequality or equality constraints
+            A = [];
+            b = [];
+            Aeq = [];
+            Beq = [];
+
+            maxU = obj.U_MAX;
+
+            f = @(x)pendulum_constraints(x, GP, gridN);
+
+
+            lb = [0;    ones(gridN * 2, 1) * -Inf;  ones(gridN, 1) * -maxU;    ones(gridN * 1, 1) * -Inf];
+            ub = [Inf;  ones(gridN * 2, 1) * Inf;   ones(gridN, 1) * maxU;    ones(gridN * 1, 1) * Inf];
+            % Options for fmincon
+            options = optimoptions(@fmincon, 'TolFun', 0.00000001, 'MaxIter', 10000, ...
+                                   'MaxFunEvals', 100000, 'Display', 'iter', ...
+                                   'DiffMinChange', 0.001, 'Algorithm', 'sqp');
+            % Solve for the best simulation time + control input
+            optimal = fmincon(time_min, x0, A, b, Aeq, Beq, lb, ub, ...
+                          f, options);
+            
+            
+            
         end
         
         function [dz] = getAccel(obj, z, u)
@@ -231,10 +296,11 @@ classdef PendulumEnv
             
         end
         
-        function [X, y, obj] = run_sim(obj, traj, cov, x, policy, invGP, SHOWPLOT)
+        function [GP, invGP, obj] = run_sim(obj, traj, cov, x, policy, GP, invGP, SHOWPLOT)
             
            
-            iters = obj.DELTA_T/obj.dt;
+            iters = round(obj.DELTA_T/obj.dt);
+            obj.dt = obj.DELTA_T/iters;
             X = zeros((length(traj(:,1))-2)*iters,3);
             y = zeros(length(X),1);
             c=1;
@@ -249,8 +315,8 @@ classdef PendulumEnv
                 for j = 1:1:iters
                     
                     xe = (traj(n,1:2) - x)';
-                    qd = xe(1)/(iters*obj.dt);
-                    qdd = (qd - x(2))/(iters*obj.dt);
+                    qd = xe(1)/(obj.DELTA_T);
+                    qdd = (qd - x(2))/(obj.DELTA_T);
                     qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
                     
                     [u, ~] = invGP.query_data_point([x,qdd]);
@@ -267,6 +333,9 @@ classdef PendulumEnv
                         obj.maxQdd = y(c,1);
                     end
                     X(c,:) = [x, u];
+                    
+                    GP = GP.add_training_data(X(c,:),y(c,1));
+                    invGP = invGP.add_training_data([X(c,1:2), y(c,1)], X(c,3));
                     
                     [x, ~] = obj.forward(x,u);
                     c = c + 1;

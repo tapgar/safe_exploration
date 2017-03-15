@@ -54,9 +54,9 @@ function [fric, safe] = dubbins_map(s)
 
         % safe check
         if in(i,2)
-            safe(i) = 1; % collision
+            fric(i) = 0.05; % ice
         else
-            safe(i) = 0; % safety
+            fric(i) = 1; %regular road
         end
     end
     
