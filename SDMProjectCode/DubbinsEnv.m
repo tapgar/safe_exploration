@@ -12,8 +12,11 @@ classdef DubbinsEnv
         CUR_STATE                       % current state
         U_NOM                           % nominal trajectory
         NUM_OF_INPUTS                   % number of inputs (u's)
-        TRAJ_DIMS                       % number of dimensions
-        
+        TRAJ_DIMS                       % number of dimensions       
+        QDD_MAX                         % max accelerations
+        QDD_MIN                         % min accelerations
+        QD_MAX                          % max velocities
+        QD_MIN                          % min velocities
         f_map                           % function handle to map
         
         NOMINAL_TRAJECTORY
@@ -37,6 +40,10 @@ classdef DubbinsEnv
             obj.END_STATE = [10, 10, pi, 0, 0];
             obj.U_MAX = [3.0, 0.1];
             obj.U_MIN = [-3.0, -0.1];
+            obj.QDD_MAX = [3, 0.1];
+            obj.QDD_MIN = [-3, -0.2];
+            obj.QD_MAX = [1.25, 0.2];
+            obj.QD_MIN = [-1.25, -0.1];
             obj.R_MIN = 0.5;
             obj.NUM_OF_INPUTS = 2;
             
@@ -66,6 +73,8 @@ classdef DubbinsEnv
         end
         
         function [z_new, fric, unsafe] = forward_traj(obj, z0, u)
+            clip = @(in, ub, lb) min(max(in, lb), ub);
+            
         % given an inputs, initial state
         % z = [x0, y0, theta0, v0, thetad0]
         % u = [vd, thetadd]
@@ -77,15 +86,20 @@ classdef DubbinsEnv
             qd_array(1,:) = z0(4:5);
             
             ydd_max = 3; % some arbitrary constant above which slipping occurs
-            fric_S = 0.1; fric_D = 0.1;
             ydd = 0; yd = 0;
             % for each input
             for i = 2:size(u,1)+1 % initial position to one beyond end of array
+                %update friction - both friction values can come from env
+                %if we want
+                [s, ~] = obj.f_map(q_array(i-1,1:2));
+                fric_S = s; fric_D = 0.1 * fric_S;
                 %update state
                 % x_new = x_old + v_old * cos(theta_old) * dt;
                 % y_new = y_old + v_old * sin(theta_old) * dt;
                 % theta_new = theta_old + thetad * dt;
                 
+                
+                % SLIPPING DYNAMICS
                 % get forward and sideways velocity in bodyframe coordinates
                 % rho = v/alpha_dot
                 rho = qd_array(i - 1, 1) / qd_array(i -1, 2);
@@ -121,20 +135,29 @@ classdef DubbinsEnv
 
                 % v_new = v_old + u1 * dt
                 % theta_turn = thetad_old + u2 * dt
-                qd_array(i, 1) = qd_array(i - 1, 1) + u(i - 1, 1) * obj.DELTA_T;
-                qd_array(i, 2) = qd_array(i - 1, 2) + u(i - 1, 2) * obj.DELTA_T;
+                % clipping accelerations
+                eff_acc = clip((u(i - 1, 1) - sign(qd_array(i-1,1)) * fric_S), obj.QDD_MAX(1), obj.QDD_MIN(1));
+                eff_turn = clip(u(i - 1, 2), obj.QDD_MAX(2), obj.QDD_MIN(2));
                 
-                % updating friction
-                ydd_max = 3;
+                qd_array(i, 1) = qd_array(i - 1, 1) + eff_acc * obj.DELTA_T;
+                qd_array(i, 2) = qd_array(i - 1, 2) + eff_turn * obj.DELTA_T;
+                
+                
+                % clip some velocity - if on ice, then can go as fast as
+                % you want ?? -- at max accerlation should the damping
+                % coefficient begin to dominate?
+                if fric_S > 0.1
+                    qd_array(i,1) = clip(qd_array(i,1), obj.QD_MAX(1), obj.QD_MIN(1));
+                end
+                qd_array(i,2) = clip(qd_array(i,2), obj.QD_MAX(2), obj.QD_MIN(2));
+                
+                
             end
             
             z_new = [q_array, qd_array];
             
             % map check
             [fric, unsafe] = obj.f_map(z_new);
-%             if ~any(safe)
-%                 unsafe = 0; % safe zone!
-%             end
             
         end
         

@@ -121,23 +121,24 @@ hold off
 
 %% Test ICE - 2
 dt = 0.1;
-u = ones(100,1) * [0, 0];
-for i1 = 1:2
-    for i2 = 1:2
-        q0 = [0, 0, 0, (-1)^i1, (-1)^i2];
+u = ones(150,1) * [0.5, 0.0];
+u(:,2) = linspace(0.04, -0.04, size(u,1));
+for i1 = 1:1
+    for i2 = 1:1
+        q0 = [0, 0, 0, 0, 0];
         D = DubbinsEnv(@dubbins_map);
         [q, c, s] = D.forward_traj(q0, u);
         hold on
         for i_u = 1:length(u)
-            if c(i_u) == 1
-                col = 'ro';
+            if c(i_u) ~= 0.05
+                col = 'ro'; % regular road
             else
-                col = 'go';
+                col = 'go'; % ice
             end
             if s(i_u) == 1
-                fill = 'black';
+                fill = 'white'; %collision
             else
-                fill = 'white';
+                fill = 'black'; %no collision
             end
 
             plot(q(i_u,1), q(i_u, 2), col, 'MarkerFaceColor', fill)
@@ -155,11 +156,11 @@ traj = D.U_NOM;
 controller = @(e, ed) Kp*e + Kd*ed;
 cur = D.START_STATE;
 u = zeros(size(traj,1),2);
-for i_p = 1:size(traj,1)-1
-    e = 
-    u(i_p, :) = 
-    
-end
+% for i_p = 1:size(traj,1)-1
+%     e = 
+%     u(i_p, :) = 
+%     
+% end
 
 traj_diff = diff(traj(end:-1:1, :),2)./ dt^2; % get acceleration from path
 traj_acc = traj_diff(:, :).^2; % square everything
