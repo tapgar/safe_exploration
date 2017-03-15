@@ -182,10 +182,10 @@ classdef GP_model
             
             x_diff = ones(obj.num_pts,1)*newX - obj.X(1:obj.num_pts,:);
             Knew = obj.hp.sig_std.*exp(-0.5*(x_diff.^2)*diag(obj.hp.W));
-            dfdx = -(1\obj.hp.W)*x_diff'*(Knew.*(obj.invK(1:obj.num_pts,1:obj.num_pts)*obj.y(1:obj.num_pts,:)));
+            dfdx = -(1\obj.hp.W)*x_diff'*((Knew*ones(1,2)).*(obj.invK(1:obj.num_pts,1:obj.num_pts)*obj.y(1:obj.num_pts,:)));
                        
-            A = dfdx(1:length(x),:);
-            B = dfdx(length(x)+1:end,:);
+            A = dfdx(1:length(x),:)';
+            B = dfdx(length(x)+1:end,:)';
         end
         
         

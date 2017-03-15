@@ -20,20 +20,14 @@ end
 
 env = env.NominalTrajectory(GP);
 
-
 for k = 1:1:10
 
     figure(6)
     plot(env.U_NOM);
     
-    u = [env.U_NOM,env.V_NOM];%STOMP(env, 30, GP, invGP, @lqg_traj_cost_func);
-
-    %u = STOMP(env, 30, GP, invGP, @lqg_traj_cost_func);
-
+    u = STOMP(env, 30, GP, invGP, @collision_cost_function);
     
-    traj = u;% [env.START_STATE(1:env.TRAJ_DIMS); u(:,1); env.END_STATE(1:env.TRAJ_DIMS)];
-    
-    [ L_rec, cov, ~, ~, IG ] = LQR_GP( env, traj(:,1), GP, invGP, 100.*eye(2),1);
+    [ L_rec, cov, ~, ~, IG ] = LQR_GP( env, u, GP, invGP, 100.*eye(2),1);
     
     
     %env.U_NOM = traj(2:end-1,1);

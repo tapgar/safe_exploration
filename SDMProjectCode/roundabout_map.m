@@ -1,4 +1,4 @@
-function [fric, safe] = dubbins_map(s)
+function [fric, safe] = roundabout_map(s)
 % check all states to see if they are in danger zone!
     
 
@@ -17,14 +17,14 @@ function [fric, safe] = dubbins_map(s)
     
     
     i_o = 1;
+    obstacle{i_o} = [0,6; 7,6; 7,8; 0,8]; i_o = i_o + 1;
     obstacle{i_o} = [0,10; 4.5,10; 4.5,8; 0,8]; i_o = i_o + 1;
-    obstacle{i_o} = [10,10; 5.5,10; 5.5,8; 10,8]; i_o = i_o + 1;
     % ice obstacles
     i_c = 1;
-    ice{i_c} = [4.5, 9; 5.5, 9; 5.5, 8; 4.5, 8]; i_c = i_c + 1;
+    %ice{i_c} = [4.5, 9; 5.5, 9; 5.5, 8; 4.5, 8]; i_c = i_c + 1;
 %     ice{i_c} = [-2, -2; -2, 2; 2, 2; 2, -2]; i_c = i_c + 1;
-    ice{i_c} = [3,8; 7,8; 7,6; 3,6]; i_c = i_c + 1;
-    ice{i_c} = [5,6; 7,6; 7,0; 5,0]; i_c = i_c + 1;
+    ice{i_c} = [6,10; 10,10; 10,6; 6,6]; i_c = i_c + 1;
+    ice{i_c} = [6,0; 6,3; 10,3; 10,0]; i_c = i_c + 1;
     
     
     

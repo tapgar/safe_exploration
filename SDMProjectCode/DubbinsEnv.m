@@ -10,7 +10,6 @@ classdef DubbinsEnv
         START_STATE                     % state state
         END_STATE                       % end state
         CUR_STATE                       % current state
-        U_NOM                           % nominal trajectory
         NUM_OF_INPUTS                   % number of inputs (u's)
         TRAJ_DIMS                       % number of dimensions       
         QDD_MAX                         % max accelerations
@@ -18,6 +17,16 @@ classdef DubbinsEnv
         QD_MAX                          % max velocities
         QD_MIN                          % min velocities
         f_map                           % function handle to map
+        
+        U_NOM                           % nominal trajectory
+        V_NOM
+        t_NOM
+        
+        dircolPts
+        
+        x_start
+        v_start
+        u_start
         
         NOMINAL_TRAJECTORY
     end
@@ -34,18 +43,29 @@ classdef DubbinsEnv
             
             obj.f_map = f_map;   % Map is a function that returns safety in a map
             obj.POINTS_IN_TRAJ = 50;
-            obj.TRAJ_DIMS = 2;
+            obj.TRAJ_DIMS = 3;
             obj.DELTA_T = 0.1;
-            obj.START_STATE = [0, 0, 0, 0, 0];
-            obj.END_STATE = [10, 10, pi, 0, 0];
-            obj.U_MAX = [3.0, 0.1];
-            obj.U_MIN = [-3.0, -0.1];
+            obj.START_STATE = [0.5, 0.5, 0, 0, 0];
+            obj.END_STATE = [5, 9.5, pi, 0, 0];
+            obj.U_MAX = [3.0, pi/2];
+            obj.U_MIN = [-3.0, -pi/2];
             obj.QDD_MAX = [3, 0.1];
             obj.QDD_MIN = [-3, -0.2];
-            obj.QD_MAX = [1.25, 0.2];
-            obj.QD_MIN = [-1.25, -0.1];
+            obj.QD_MAX = [3.25, 0.2];
+            obj.QD_MIN = [-3.25, -0.1];
             obj.R_MIN = 0.5;
             obj.NUM_OF_INPUTS = 2;
+            
+            obj.dircolPts = 25;
+            
+            obj.x_start = [linspace(obj.START_STATE(1),obj.END_STATE(1),obj.dircolPts)';...
+                           linspace(obj.START_STATE(2),obj.END_STATE(2),obj.dircolPts)';...
+                           linspace(obj.START_STATE(3),obj.END_STATE(3),obj.dircolPts)'];
+            obj.v_start = [linspace(obj.START_STATE(4),obj.END_STATE(4),obj.dircolPts)';...
+                           linspace(obj.START_STATE(5),obj.END_STATE(5),obj.dircolPts)'];
+            
+            obj.u_start = zeros(obj.dircolPts*2,1);
+                       
             
             obj.ENV_NAME = 'DubbinsSimple';
             obj.NOMINAL_TRAJECTORY = false;
@@ -55,20 +75,156 @@ classdef DubbinsEnv
         end
         
         
-        function obj = NominalTrajectory(obj) % Create Nominal Trajectory
+        function obj = NominalTrajectory_old(obj) % Create Nominal Trajectory
 %             build straight line trajectory
               path = dubins_curve(obj.START_STATE, obj.END_STATE, obj.R_MIN, 0);
               obj.U_NOM = path;
         end
         
-        function [dz] = getAccel(obj, u)
-%            dz = ( u - obj.b*z(2) - obj.m*obj.g*obj.l*sin(z(1))/2 ) / (obj.m*obj.l^2/3);
-             dz = u(1);
+        function obj = NominalTrajectory(obj, GP, icyGP) % Create Nominal Trajectory
+            % build straight line trajectory
+%             pos_traj = linspace(obj.START_STATE(1), obj.END_STATE(1), obj.POINTS_IN_TRAJ)';
+%             obj.U_NOM = pos_traj;
+%             load pendulumData
+%             obj.U_NOM = X(1:8:end-1,1);
+
+              traj = obj.DirColTrajectory(GP, icyGP);
+              obj.U_NOM = [interp(traj(2:1+obj.dircolPts),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                           interp(traj(2+obj.dircolPts:1+obj.dircolPts*2),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                           interp(traj(2+obj.dircolPts*2:1+obj.dircolPts*3),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+              obj.V_NOM = [interp(traj(2+obj.dircolPts*3:1+obj.dircolPts*4),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                           interp(traj(2+obj.dircolPts*4:1+obj.dircolPts*5),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+                       
+              obj.t_NOM = [interp(traj(2+obj.dircolPts*5:1+obj.dircolPts*6),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                           interp(traj(2+obj.dircolPts*6:1+obj.dircolPts*7),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+              
+              obj.DELTA_T = traj(1)/obj.POINTS_IN_TRAJ;
+              obj.x_start = reshape(traj(2:1+obj.dircolPts*3),obj.dircolPts*3,1);
+              obj.v_start = reshape(traj(obj.dircolPts*3+2:1+obj.dircolPts*5),obj.dircolPts*2,1);
+              obj.u_start = reshape(traj(obj.dircolPts*5+2:1+obj.dircolPts*7),obj.dircolPts*2,1);
+        end
+        
+        function optimal = DirColTrajectory(obj, GP, icyGP)
+           
+            gridN = obj.dircolPts;
+
+            time_min = @(x) (x(1) + 2.*sum(sum(x(2 + gridN * 7 : end).^2)));
+
+            % The initial parameter guess; 1 second, gridN positions, gridN velocities,
+            % gridN accelerations
+            x0 = [10;...
+                  obj.x_start;...
+                  obj.v_start;...
+                  obj.u_start;...
+                  zeros(gridN*2,1)];
+
+            % No linear inequality or equality constraints
+            A = [];
+            b = [];
+            Aeq = [];
+            Beq = [];
+
+
+            f = @(x)dubins_constraints(x, GP, icyGP, gridN, @check_surf_type);
+
+            lb = [0;...
+                  zeros(gridN, 1);... %x
+                  zeros(gridN, 1);... %y
+                  -ones(gridN,1)*Inf;... %yaw
+                  ones(gridN,1)*obj.QD_MIN(1);...
+                  ones(gridN,1)*obj.QD_MIN(1);...
+                  ones(gridN, 1) * obj.U_MIN(1);...
+                  ones(gridN, 1) * obj.U_MIN(2);...
+                  ones(gridN,1)*obj.U_MIN(1);...
+                  ones(gridN,1)*obj.U_MIN(2)];
+              
+            ub = [Inf;...
+                ones(gridN, 1).*10;...
+                ones(gridN, 1).*10;...
+                ones(gridN,1)*Inf;...
+                ones(gridN,1)*obj.QD_MAX(1);...
+                ones(gridN,1)*obj.QD_MAX(1);...
+                ones(gridN, 1) * obj.U_MAX(1);...
+                ones(gridN, 1) * obj.U_MAX(2);...
+                ones(gridN,1)*obj.U_MAX(1);...
+                ones(gridN,1)*obj.U_MAX(2)];
+            
+            % Options for fmincon
+            options = optimoptions(@fmincon, 'TolFun', 0.0001, 'MaxIter', 10000, ...
+                                   'MaxFunEvals', 100000, 'Display', 'iter', ...
+                                   'DiffMinChange', 1, 'Algorithm', 'sqp');
+            % Solve for the best simulation time + control input
+            optimal = fmincon(time_min, x0, A, b, Aeq, Beq, lb, ub, ...
+                          f, options);
+            
+            
+        end
+        
+        function [dz] = getAccel(obj,z,u)
+            
+            x = z(1);   %global x
+            y = z(2);   %global y
+            psi = z(3); %angle
+            xd = z(4);  %linear velocity
+            yd = z(5);  %slip velocity
+            psd = u(2); %angular velocity
+            
+            xdd = u(1);
+            
+            [s, ~] = obj.f_map([x,y,psi,xd,yd]);
+            fric_S = s; fric_D = 0.1 * fric_S;
+            
+            %check side slip
+            % SLIPPING DYNAMICS
+            % get forward and sideways velocity in bodyframe coordinates
+            % rho = v/alpha_dot
+            rho = xd / (0.0000000001+psd);
+            % centripetal acceleration = v^2 / rho;
+            ydd_limit = xd ^ 2 / rho - sign(rho)*(fric_S + fric_D * abs(yd));
+
+            if abs(ydd_limit) > 3 % if above some value then slipping occurs
+                ydd = ydd_limit;
+            elseif yd > 0.001 % if going counter clockwise around circle
+                ydd = - fric_S - fric_D * yd; % ydd should always be negative
+            elseif yd < -0.001 % if going clockwise around circle
+                ydd = fric_S - fric_D * yd; % ydd shold always be positive
+            else
+                ydd = 0;
+                yd = 0;
+            end
+                            
+            dz = [xdd;ydd];
+            
         end
         
         function [z_new, unsafe] = forward(obj, z0, u)
             [z_new, unsafe] = obj.forward_tra(obj, z0, u);
             z_new = z_new(end,:); unsafe = unsafe(end);
+            
+        end
+        
+        function [z_new] = forward_dyn(obj, z, u)
+           
+            x = z(1);   %global x
+            y = z(2);   %global y
+            psi = z(3); %angle
+            xd = z(4);  %linear velocity
+            yd = z(5);  %slip velocity
+            psd = u(2); %angular velocity
+            
+            [xdd, ydd] = getAccel(z,u);            
+            
+            xd = xd + xdd*obj.dt;
+            yd = yd + ydd*obj.dt;
+            psd = u(2);
+            
+            vx = xd*cos(psi) - yd*sin(psi);
+            vy = xd*sin(psi) + yd*cod(psi);
+            
+            x = x + vx*obj.dt;
+            y = y + vy*obj.dt;
+            
+            z_new = [x;y;psi;xd;yd;psd];
             
         end
         
@@ -87,6 +243,8 @@ classdef DubbinsEnv
             
             ydd_max = 3; % some arbitrary constant above which slipping occurs
             ydd = 0; yd = 0;
+            
+            
             % for each input
             for i = 2:size(u,1)+1 % initial position to one beyond end of array
                 %update friction - both friction values can come from env
@@ -162,15 +320,17 @@ classdef DubbinsEnv
             
         end
         
-        function [X, y] = generateLocalData(obj, x0, K)
+        function [X, y] = generateLocalData(obj, x, u, K)
            
-            X = randn(K,length(x0)).*0.05;
-            y = zeros(K,1);
+            X = zeros(K,length(x));
+            X(:,[4,6]) = randn(K,2).*0.05;
+            U = randn(K,length(u)).*0.05;
+            y = zeros(K,2);
             for i = 1:1:length(X(:,1))
-                dz = obj.getAccel(X(i,1:2),X(i,3));
-                y(i,1) = dz(end,1);
+                dz = obj.getAccel(X(i,:),U(i,:));
+                y(i,:) = dz';
             end
-            
+            X = [X,U];
         end
         
         function qdd = getTargetAccel(obj, targ, xe)
@@ -178,6 +338,21 @@ classdef DubbinsEnv
             qd = xe(1)/obj.DELTA_T;
             qdd = (qd - targ(2))./obj.DELTA_T;
             qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
+            
+        end
+        
+        function col = collision(obj, p1, p2)
+           
+            col = 0;
+            for i = 1:1:10
+                x = p1(1) + (p2(1) - p1(1))*i/10;
+                y = p1(2) + (p2(2) - p1(2))*i/10;
+                surfType = check_surf_type([x,y]);
+                if (surfType == 2)
+                    col = 1;
+                    return;
+                end
+            end
             
         end
             
