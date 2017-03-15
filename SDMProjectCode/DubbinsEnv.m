@@ -33,8 +33,8 @@ classdef DubbinsEnv
             obj.POINTS_IN_TRAJ = 50;
             obj.TRAJ_DIMS = 2;
             obj.DELTA_T = 0.1;
-            obj.START_STATE = [0, 0, 0];
-            obj.END_STATE = [10, 10, pi];
+            obj.START_STATE = [0, 0, 0, 0, 0];
+            obj.END_STATE = [10, 10, pi, 0, 0];
             obj.U_MAX = [3.0, 0.1];
             obj.U_MIN = [-3.0, -0.1];
             obj.R_MIN = 0.5;
@@ -65,7 +65,7 @@ classdef DubbinsEnv
             
         end
         
-        function [z_new, unsafe] = forward_traj(obj, z0, u)
+        function [z_new, fric, unsafe] = forward_traj(obj, z0, u)
         % given an inputs, initial state
         % z = [x0, y0, theta0, v0, thetad0]
         % u = [vd, thetadd]
@@ -76,7 +76,7 @@ classdef DubbinsEnv
             q_array(1,:) = z0(1:3);
             qd_array(1,:) = z0(4:5);
             
-            yd_max = obj.f_map(q_array(1,1:2));
+            ydd_max = 3; % some arbitrary constant above which slipping occurs
             fric_S = 0.1; fric_D = 0.1;
             ydd = 0; yd = 0;
             % for each input
@@ -90,27 +90,27 @@ classdef DubbinsEnv
                 % rho = v/alpha_dot
                 rho = qd_array(i - 1, 1) / qd_array(i -1, 2);
                 % centripetal acceleration = v^2 / rho;
-                ydd_limit = qd_array(i - 1, 1) ^ 2 / rho - fric_S - fric_D * yd;
+                ydd_limit = qd_array(i - 1, 1) ^ 2 / rho - sign(rho)*(fric_S + fric_D * abs(yd));
                 yd  = yd + ydd * obj.DELTA_T;
-                if ydd_limit > yd_max % if above some value then slipping occurs
+                if abs(ydd_limit) > ydd_max % if above some value then slipping occurs
                     ydd = ydd_limit;
                     unsafe(i) = 0;
-                elseif yd > 0 %yd always is positive
-                    ydd = - fric_S - fric_D * yd;
+                elseif yd > 0.001 % if going counter clockwise around circle
+                    ydd = - fric_S - fric_D * yd; % ydd should always be negative
+                elseif yd < -0.001 % if going clockwise around circle
+                    ydd = fric_S - fric_D * yd; % ydd shold always be positive
                 else
                     ydd = 0;
                     yd = 0;
                 end
-
+                
+                % DYNAMIC UPDATE %
                 q_array(i, 1) = q_array(i - 1, 1) + ...
                     qd_array(i - 1, 1) * cos(q_array(i-1,3)) * obj.DELTA_T + ...
-                    yd * cos(q_array(i-1,3)) * obj.DELTA_T;
+                    abs(yd) * cos(q_array(i-1,3) + sign(qd_array(i-1, 2)) * pi/2) * obj.DELTA_T;
                 q_array(i, 2) = q_array(i - 1, 2) + ...
                     qd_array(i - 1, 1) * sin(q_array(i-1,3)) * obj.DELTA_T + ...
-                    yd * sin(q_array(i-1,3)) * obj.DELTA_T;
-                
-                
-                
+                    abs(yd) * sin(q_array(i-1,3) + sign(qd_array(i-1, 2)) * pi/2) * obj.DELTA_T;
                 
                 % behavior for reversing
                 if qd_array(i-1, 1) >= 0
@@ -125,15 +125,16 @@ classdef DubbinsEnv
                 qd_array(i, 2) = qd_array(i - 1, 2) + u(i - 1, 2) * obj.DELTA_T;
                 
                 % updating friction
-                yd_max = obj.f_map(q_array(i, 1:2));
+                ydd_max = 3;
             end
             
             z_new = [q_array, qd_array];
             
-            % map check - map can be passed as argument to env_pendulum function
-            if ~obj.f_map(z_new)
-                unsafe = 0; % safe zone!
-            end
+            % map check
+            [fric, unsafe] = obj.f_map(z_new);
+%             if ~any(safe)
+%                 unsafe = 0; % safe zone!
+%             end
             
         end
         
