@@ -7,6 +7,7 @@ function [fric, safe] = dubbins_map(s)
     i_o = 1;
     obstacle{i_o} = [8,10; 9,10; 9,9; 8,9]; i_o = i_o + 1;
     obstacle{i_o} = [1,8; 2,8; 2,9; 1,9]; i_o = i_o + 1;
+    obstacle{i_o} = [-2, -2; -2, 2; 2, 2; 2, -2]; i_o = i_o + 1;
     % ice obstacles
     i_c = 1;
     ice{i_c} = [5, 5; 5, 6; 6, 6; 6, 5]; i_c = i_c + 1;
@@ -45,17 +46,17 @@ function [fric, safe] = dubbins_map(s)
     safe = zeros(size(s,1),1);
     for i = 1:size(s,1)
         % fric check
-        if any(in(:,1))
+        if in(i,1)
             fric(i) = 0.05; % ice
         else
-            fric(i) = 1; %regular road
+            fric(i) = 0.2; %regular road
         end
 
         % safe check
-        if any(in(:,2))
-            safe(i) = 1; % collision
+        if in(i,2)
+            fric(i) = 0.05; % ice
         else
-            safe(i) = 0; % safety
+            fric(i) = 1; %regular road
         end
     end
     
