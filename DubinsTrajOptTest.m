@@ -20,17 +20,19 @@ for i = 1:1:start_pts
 end
 
 env = env.NominalTrajectory(GP,icyGP);
-hold on
+%hold on
 %plot(env.U_NOM(1,:),env.U_NOM(2,:));
 
-for k = 1:1:10
+
     
     u = STOMP(env, 40, GP, invGP, @collision_cost_function);
     
-    [ L_rec, cov, ~, ~, IG ] = LQR_GP( env, u, GP, invGP, icyGP, invicyGP, 0.5.*diag([10, 10, 10, 2, 2, 2]), eye(2));
+for k = 1:1:10
+    [ L_rec, cov, ~, ~, IG ] = LQR_GP( env, u, GP, invGP, icyGP, invicyGP, diag([10, 10, 10, 2, 2, 2]), eye(2));
     
-    figure(2)
+    figure(k+1)
     clf
     plot_cov(env, u, cov, IG);
     
+    cov_log(k,:) = [cov(:,1);cov(:,2)]'; 
 end

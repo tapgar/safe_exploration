@@ -20,26 +20,39 @@ cov=zeros(N,nX+nU);
 
 dt = env.DELTA_T;
 
-A = eye(6);
-A(6,6) = 0;
-B = zeros(6,2);
-B(4,1) = dt;
-B(6,2) = 1;
+c=env.POINTS_IN_TRAJ+1;
+psi_targ = zeros(env.POINTS_IN_TRAJ+2,1);
+psi_targ(end,1) = pi;
+for n = N+1:-1:2
+    %global accels
+    qdd_targ = (traj(n-1,1:env.TRAJ_DIMS)' - 2.*traj(n,1:env.TRAJ_DIMS)' + traj(n+1,1:env.TRAJ_DIMS)')./(env.DELTA_T^2);
+    %global vels
+    qd_targ = (traj(n+1,1:env.TRAJ_DIMS)' - traj(n-1,1:env.TRAJ_DIMS)')./(2.*env.DELTA_T);
+    psi_targ(c,1) = atan2(qd_targ(2),qd_targ(1));
+    c=c-1;
+end
+
 
 S = C;
 for n = N+1:-1:2
     
     %global accels
-    qdd_targ = (traj(n-1,1:env.TRAJ_DIMS-1)' - 2.*traj(n,1:env.TRAJ_DIMS-1)' + traj(n+1,1:env.TRAJ_DIMS-1)')./(env.DELTA_T^2);
+    qdd_targ = ([traj(n-1,1:env.TRAJ_DIMS),psi_targ(n-1,1)]' - 2.*[traj(n,1:env.TRAJ_DIMS),psi_targ(n,1)]' + [traj(n+1,1:env.TRAJ_DIMS),psi_targ(n+1,1)]')./(env.DELTA_T^2);
     %global vels
-    qd_targ = (traj(n+1,1:env.TRAJ_DIMS)' - traj(n-1,1:env.TRAJ_DIMS)')./(2.*env.DELTA_T);
+    qd_targ = ([traj(n+1,1:env.TRAJ_DIMS),psi_targ(n+1,1)]' - [traj(n-1,1:env.TRAJ_DIMS),psi_targ(n-1,1)]')./(2.*env.DELTA_T);
     psi = atan2(qd_targ(2),qd_targ(1));
+    if qd_targ(3,1) < -pi
+        qd_targ(3,1) = qd_targ(3,1) + 2*pi;
+    elseif (qd_targ(3,1) > pi)
+        qd_targ(3,1) = qd_targ(3,1) - 2*pi;
+    end
     
-    R = [cos(psi), sin(psi); -sin(psi) cos(psi)];
+    R = [cos(psi), sin(psi), 0; -sin(psi) cos(psi), 0; 0, 0, 1];
+    
     qdd = R*qdd_targ;
-    qd = R*qd_targ(1:2,1);
+    qd = R*qd_targ;
     
-    q_targ = traj(n,1:env.TRAJ_DIMS)';
+    q_targ = [traj(n,1:env.TRAJ_DIMS-1)'; psi];
     
     if (check_surf_type([q_targ(1),q_targ(2)])==0)
         [u, ~] = inviceGP.query_data_point([qd', qdd']);
@@ -49,20 +62,19 @@ for n = N+1:-1:2
         [a, b] = GP.linearize(qd',u);
     end
     
+    
+    A = eye(6);
+    B = zeros(6,2);
     A(1,4) = cos(psi)*dt;
     A(1,5) = -sin(psi)*dt;
     A(2,4) = sin(psi)*dt;
     A(2,5) = cos(psi)*dt;
     A(3,6) = dt;
-    A(4,4) = A(4,4) + a(1,1)*dt;
-    A(4,5) = a(1,2)*dt;
-    A(5,5) = A(5,5) + a(2,2)*dt;
-    A(5,4) = a(2,1)*dt;
-        
-    B(4,1) = dt*b(1,1);
-    B(4,2) = dt*b(1,2);
-    B(5,1) = dt*b(2,1);
-    B(5,2) = dt*b(2,2);
+    A(4,4:end) = A(4,4:end) + a(1,1:3).*dt;
+    A(5,4:end) = A(5,4:end) + a(2,1:3).*dt;
+    A(6,4:end) = A(6,4:end) + a(3,1:3).*dt;
+    
+    B(4:6,:) = b.*dt;
     
     L = -((B'*S*B + D)^-1)*B'*S*A;
     S = C + A'*S*A + A'*S*B*L;
@@ -76,18 +88,29 @@ for n = 2:1:N+1
     
     p_idx = n-1;
     
-    
     %global accels
-    qdd_targ = (traj(n-1,1:env.TRAJ_DIMS-1)' - 2.*traj(n,1:env.TRAJ_DIMS-1)' + traj(n+1,1:env.TRAJ_DIMS-1)')./(env.DELTA_T^2);
+    qdd_targ = ([traj(n-1,1:env.TRAJ_DIMS),psi_targ(n-1,1)]' - 2.*[traj(n,1:env.TRAJ_DIMS),psi_targ(n,1)]' + [traj(n+1,1:env.TRAJ_DIMS),psi_targ(n+1,1)]')./(env.DELTA_T^2);
     %global vels
-    qd_targ = (traj(n+1,1:env.TRAJ_DIMS)' - traj(n-1,1:env.TRAJ_DIMS)')./(2.*env.DELTA_T);
+    qd_targ = ([traj(n+1,1:env.TRAJ_DIMS),psi_targ(n+1,1)]' - [traj(n-1,1:env.TRAJ_DIMS),psi_targ(n-1,1)]')./(2.*env.DELTA_T);
     psi = atan2(qd_targ(2),qd_targ(1));
+    if qd_targ(3,1) < -pi
+        qd_targ(3,1) = qd_targ(3,1) + 2*pi;
+    elseif (qd_targ(3,1) > pi)
+        qd_targ(3,1) = qd_targ(3,1) - 2*pi;
+    end
     
-    rot = [cos(psi), sin(psi); -sin(psi) cos(psi)];
+    rot = [cos(psi), sin(psi), 0; -sin(psi) cos(psi), 0; 0, 0, 1];
+    
     qdd = rot*qdd_targ;
-    qd = rot*qd_targ(1:2,1);
+    qd = rot*qd_targ;
     
-    q_targ = traj(n,1:env.TRAJ_DIMS)';
+    if (qdd(3) > env.QDD_MAX(3))
+        qdd(3) = env.QDD_MAX(3);
+    elseif (qdd(3) < env.QDD_MIN(3))
+        qdd(3) = env.QDD_MIN(3);
+    end
+    
+    q_targ = [traj(n,1:env.TRAJ_DIMS-1)'; psi];
     
     if (check_surf_type([q_targ(1),q_targ(2)])==0)
         [u, ~] = inviceGP.query_data_point([qd', qdd']);
@@ -99,26 +122,25 @@ for n = 2:1:N+1
         [a, b] = GP.linearize(qd',u);
     end
     
+    A = eye(6);
+    B = zeros(6,2);
+
     A(1,4) = cos(psi)*dt;
     A(1,5) = -sin(psi)*dt;
     A(2,4) = sin(psi)*dt;
     A(2,5) = cos(psi)*dt;
     A(3,6) = dt;
-    A(4,4) = A(4,4) + a(1,1)*dt;
-    A(4,5) = a(1,2)*dt;
-    A(5,5) = A(5,5) + a(2,2)*dt;
-    A(5,4) = a(2,1)*dt;
-        
-    B(4,1) = dt*b(1,1);
-    B(4,2) = dt*b(1,2);
-    B(5,1) = dt*b(2,1);
-    B(5,2) = dt*b(2,2);
+    A(4,4:end) = A(4,4:end) + a(1,1:3).*dt;
+    A(5,4:end) = A(5,4:end) + a(2,1:3).*dt;
+    A(6,4:end) = A(6,4:end) + a(3,1:3).*dt;
     
-    
+    B(4:6,:) = b.*dt;
+       
    L = reshape(L_rec(p_idx,:),nU,nX);
    COV = zeros(6);
    COV(4,4) = SIG*dt;
    COV(5,5) = SIG*dt;
+   COV(6,6) = SIG*dt;
    R = (A + B*L)*R*(A + B*L)' + COV;
    
    if (check_surf_type([q_targ(1),q_targ(2)])==0)
@@ -142,6 +164,9 @@ for n = 2:1:N+1
    delj = [eye(nX); Lj];
    cov_temp = delj*R*delj';
    [sig, ~] = cov2corr(cov_temp);
+   if (sig(1) > 2)
+      somethingfishy = true; 
+   end
    cov(p_idx,:) = sig;
 
 end

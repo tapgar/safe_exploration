@@ -8,24 +8,34 @@ close all
 
 load diff_drive_training
 %load MotorCycle_Data
-x = trainX;% + 0.01.*randn(401,2);
-y = trainY;
+x = [trainX(:,1:3),trainY];% + 0.01.*randn(401,2);
+y = trainX(:,4:end);
 
-%gps=fitrgp(x,y);
+% x(:,1) = x(:,1)./20;
+% x(:,2) = x(:,2)./1;
+% x(:,3) = x(:,3)./4;
+% x(:,4) = x(:,4)./10;
+% x(:,5) = x(:,5)./5;
+% x(:,6) = x(:,6)./15;
+% 
+% y = y./400;
+
+
+%gps=fitrgp(x,y(:,1));
 
 % x = [x(1:50); x(end-50:end)];
 % y = [x(1:50); y(end-50:end)];
 
 %hp = struct('y_std',511,'sig_std',2050,'W',0.0362);
 
-hp = struct('y_std',1.027,'sig_std',200.9978,'W',0.05./diag([10, 0.5, 2, 150, 150]));
+hp = struct('y_std',0.001,'sig_std',0.05,'W',50.*eye(6),'SF',[20,1,4,10,5,15,400,400]);
 %hp = struct('y_std',20,'sig_std',100,'W',2.*eye(2));
 
 model = LocalGP(200, 50, 0.5, hp);
 
 num_cells = 40;
 x1 = linspace(min(x(:,4)),max(x(:,4)),num_cells);
-x2 = linspace(min(x(:,5)),max(x(:,5)),num_cells);
+x2 = linspace(min(x(:,6)),max(x(:,6)),num_cells);
 [X1, X2] = meshgrid(x1,x2);
 ypred2 = zeros(size(X1));
 
@@ -40,9 +50,14 @@ end
 
 for j = 1:1:num_cells
     for k = 1:1:num_cells
-        [yp, vs] = model.query_data_point([0,0,0,X1(j,k),X2(j,k)]);
-        xdd(j,k) = yp(2);
-        tdd(j,k) = yp(3);
+        [~,n] = min((x(:,4)-X1(j,k)).^2 + (x(:,6)-X2(j,k)).^2);
+        
+        [yp, vs] = model.query_data_point([x(n,1:3),X1(j,k),x(n,5),X2(j,k)]);
+        xdd(j,k) = yp(1);
+        if (length(yp) < 2)
+            ofuck=true;
+        end
+        tdd(j,k) = yp(2);
         vxdd(j,k) = vs(1);
         vtdd(j,k) = vs(1);
         %[ypredG(j,k) VG(j,k)] = predict(gps,[X1(j,k),X2(j,k)]);
@@ -54,10 +69,10 @@ hold on
 mesh(X1,X2,xdd + 2.*sqrt(vxdd))
 mesh(X1,X2,xdd - 2.*sqrt(vxdd))
 
-plot3(x(:,4),x(:,5),y(:,2),'.')
+% plot3(x(:,4),x(:,6),y(:,1),'.')
 
 for i = 1:1:model.num_models
-   plot3(model.model_list{i}.X(:,4),model.model_list{i}.X(:,5),model.model_list{i}.y(:,2),'r.') 
+   plot3(model.model_list{i}.X(:,4),model.model_list{i}.X(:,6),model.model_list{i}.y(:,1),'r.') 
 end
 
 pause(0.01);
@@ -69,10 +84,10 @@ hold on
 mesh(X1,X2,tdd + 2.*sqrt(vtdd))
 mesh(X1,X2,tdd - 2.*sqrt(vtdd))
 
-plot3(x(:,4),x(:,5),y(:,3),'.')
+% plot3(x(:,4),x(:,6),y(:,2),'.')
 
 for i = 1:1:model.num_models
-   plot3(model.model_list{i}.X(:,4),model.model_list{i}.X(:,5),model.model_list{i}.y(:,3),'r.') 
+   plot3(model.model_list{i}.X(:,4),model.model_list{i}.X(:,6),model.model_list{i}.y(:,2),'r.') 
 end
 
 

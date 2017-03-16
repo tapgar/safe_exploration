@@ -1,4 +1,4 @@
-classdef DubbinsEnv
+classdef DiffDriveEnv
     
     properties
         ENV_NAME                        % environment name
@@ -28,12 +28,16 @@ classdef DubbinsEnv
         v_start
         u_start
         
+        dt
+        
+        bot
+        
         NOMINAL_TRAJECTORY
     end
         
     
     methods
-        function obj = DubbinsEnv(f_map)
+        function obj = DiffDriveEnv(f_map)
         % creates enviornment
             
             if nargin < 1
@@ -43,16 +47,16 @@ classdef DubbinsEnv
             
             obj.f_map = f_map;   % Map is a function that returns safety in a map
             obj.POINTS_IN_TRAJ = 50;
-            obj.TRAJ_DIMS = 3;
+            obj.TRAJ_DIMS = 2;
             obj.DELTA_T = 0.1;
-            obj.START_STATE = [0.5, 0.5, 0, 0, 0];
-            obj.END_STATE = [5, 9.5, pi, 0, 0];
-            obj.U_MAX = [3.0, pi/2];
-            obj.U_MIN = [-3.0, -pi/2];
-            obj.QDD_MAX = [3, 0.1];
-            obj.QDD_MIN = [-3, -0.2];
-            obj.QD_MAX = [3.25, 0.2];
-            obj.QD_MIN = [-3.25, -0.1];
+            obj.START_STATE = [0.5, 0.5, 0, 0, 0, 0];
+            obj.END_STATE = [6.5, 9, -pi, 0, 0, 0];
+            obj.U_MAX = [150, 150];
+            obj.U_MIN = [-150, -150];
+            obj.QDD_MAX = [2.5, 1.0, 3];
+            obj.QDD_MIN = [-2.5, -1.0, -3];
+            obj.QD_MAX = [5, 1.5];
+            obj.QD_MIN = [-5, -1.5];
             obj.R_MIN = 0.5;
             obj.NUM_OF_INPUTS = 2;
             
@@ -62,7 +66,8 @@ classdef DubbinsEnv
                            linspace(obj.START_STATE(2),obj.END_STATE(2),obj.dircolPts)';...
                            linspace(obj.START_STATE(3),obj.END_STATE(3),obj.dircolPts)'];
             obj.v_start = [linspace(obj.START_STATE(4),obj.END_STATE(4),obj.dircolPts)';...
-                           linspace(obj.START_STATE(5),obj.END_STATE(5),obj.dircolPts)'];
+                           linspace(obj.START_STATE(5),obj.END_STATE(5),obj.dircolPts)';...
+                           linspace(obj.START_STATE(6),obj.END_STATE(6),obj.dircolPts)'];
             
             obj.u_start = zeros(obj.dircolPts*2,1);
             
@@ -71,14 +76,19 @@ classdef DubbinsEnv
                          interp(traj(2+obj.dircolPts:1+obj.dircolPts*2),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
                          interp(traj(2+obj.dircolPts*2:1+obj.dircolPts*3),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
             obj.V_NOM = [interp(traj(2+obj.dircolPts*3:1+obj.dircolPts*4),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
-                         interp(traj(2+obj.dircolPts*4:1+obj.dircolPts*5),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
-            obj.t_NOM = [interp(traj(2+obj.dircolPts*5:1+obj.dircolPts*6),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
-                         interp(traj(2+obj.dircolPts*6:1+obj.dircolPts*7),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+                         interp(traj(2+obj.dircolPts*4:1+obj.dircolPts*5),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                         interp(traj(2+obj.dircolPts*5:1+obj.dircolPts*6),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+            
+            obj.t_NOM = [interp(traj(2+obj.dircolPts*6:1+obj.dircolPts*7),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                         interp(traj(2+obj.dircolPts*7:1+obj.dircolPts*8),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
                        
             
-            obj.ENV_NAME = 'DubbinsSimple';
+            obj.ENV_NAME = 'DiffDrive';
             obj.NOMINAL_TRAJECTORY = false;
             
+            obj.bot = load_bot_parameters();
+            
+            obj.dt = 0.01;
 %             addpath('../Dubins-Curve-For-MATLAB-master/Dubins')
             
         end
@@ -102,22 +112,29 @@ classdef DubbinsEnv
                            interp(traj(2+obj.dircolPts:1+obj.dircolPts*2),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
                            interp(traj(2+obj.dircolPts*2:1+obj.dircolPts*3),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
               obj.V_NOM = [interp(traj(2+obj.dircolPts*3:1+obj.dircolPts*4),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
-                           interp(traj(2+obj.dircolPts*4:1+obj.dircolPts*5),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
-                       
-              obj.t_NOM = [interp(traj(2+obj.dircolPts*5:1+obj.dircolPts*6),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
-                           interp(traj(2+obj.dircolPts*6:1+obj.dircolPts*7),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+                           interp(traj(2+obj.dircolPts*4:1+obj.dircolPts*5),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                           interp(traj(2+obj.dircolPts*5:1+obj.dircolPts*6),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+            
+              obj.t_NOM = [interp(traj(2+obj.dircolPts*6:1+obj.dircolPts*7),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                           interp(traj(2+obj.dircolPts*7:1+obj.dircolPts*8),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
               
               obj.DELTA_T = traj(1)/obj.POINTS_IN_TRAJ;
               obj.x_start = reshape(traj(2:1+obj.dircolPts*3),obj.dircolPts*3,1);
-              obj.v_start = reshape(traj(obj.dircolPts*3+2:1+obj.dircolPts*5),obj.dircolPts*2,1);
-              obj.u_start = reshape(traj(obj.dircolPts*5+2:1+obj.dircolPts*7),obj.dircolPts*2,1);
+              obj.v_start = reshape(traj(obj.dircolPts*3+2:1+obj.dircolPts*6),obj.dircolPts*3,1);
+              obj.u_start = reshape(traj(obj.dircolPts*6+2:1+obj.dircolPts*8),obj.dircolPts*2,1);
+        end
+        
+        function obj = trajOptfromSTOMP(obj)
+           
+           obj.x_start(1:obj.dircolPts*2,1) = [decimate(obj.U_NOM(1,:),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                                               decimate(obj.U_NOM(2,:),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
         end
         
         function optimal = DirColTrajectory(obj, GP, icyGP)
            
             gridN = obj.dircolPts;
 
-            time_min = @(x) (x(1) + 2.*sum(sum(x(2 + gridN * 7 : end).^2)));
+            time_min = @(x) (x(1) + 0.1.*sum(sum(x(2 + gridN * 8 : end).^2)));
 
             % The initial parameter guess; 1 second, gridN positions, gridN velocities,
             % gridN accelerations
@@ -134,7 +151,7 @@ classdef DubbinsEnv
             Beq = [];
 
 
-            f = @(x)dubins_constraints(x, GP, icyGP, gridN, @check_surf_type);
+            f = @(x)diff_drive_constraints(x, GP, icyGP, gridN, @check_surf_type);
 
             lb = [0;...
                   zeros(gridN, 1);... %x
@@ -142,6 +159,7 @@ classdef DubbinsEnv
                   -ones(gridN,1)*Inf;... %yaw
                   ones(gridN,1)*obj.QD_MIN(1);...
                   ones(gridN,1)*obj.QD_MIN(1);...
+                  ones(gridN,1)*obj.QD_MIN(2);...
                   ones(gridN, 1) * obj.U_MIN(1);...
                   ones(gridN, 1) * obj.U_MIN(2);...
                   ones(gridN,1)*obj.U_MIN(1);...
@@ -153,6 +171,7 @@ classdef DubbinsEnv
                 ones(gridN,1)*Inf;...
                 ones(gridN,1)*obj.QD_MAX(1);...
                 ones(gridN,1)*obj.QD_MAX(1);...
+                ones(gridN,1)*obj.QD_MAX(2);...
                 ones(gridN, 1) * obj.U_MAX(1);...
                 ones(gridN, 1) * obj.U_MAX(2);...
                 ones(gridN,1)*obj.U_MAX(1);...
@@ -161,7 +180,7 @@ classdef DubbinsEnv
             % Options for fmincon
             options = optimoptions(@fmincon, 'TolFun', 0.0001, 'MaxIter', 10000, ...
                                    'MaxFunEvals', 100000, 'Display', 'iter', ...
-                                   'DiffMinChange', 0.1, 'Algorithm', 'sqp');
+                                   'DiffMinChange', 0.01, 'Algorithm', 'sqp');
             % Solve for the best simulation time + control input
             optimal = fmincon(time_min, x0, A, b, Aeq, Beq, lb, ub, ...
                           f, options);
@@ -170,40 +189,23 @@ classdef DubbinsEnv
         end
         
         function [dz] = getAccel(obj,z,u)
-            
-            x = z(1);   %global x
-            y = z(2);   %global y
-            psi = z(3); %angle
+                           
             xd = z(4);  %linear velocity
             yd = z(5);  %slip velocity
-            psd = u(2); %angular velocity
+            w = z(6); %angular velocity
             
-            xdd = u(1);
-            
-            [s, ~] = obj.f_map([x,y,psi,xd,yd]);
-            fric_S = s; fric_D = 0.1 * fric_S;
-            
-            %check side slip
-            % SLIPPING DYNAMICS
-            % get forward and sideways velocity in bodyframe coordinates
-            % rho = v/alpha_dot
-            rho = xd / (0.0000000001+psd);
-            % centripetal acceleration = v^2 / rho;
-            ydd_limit = xd ^ 2 / rho - sign(rho)*(fric_S + fric_D * abs(yd));
-
-            if abs(ydd_limit) > 3 % if above some value then slipping occurs
-                ydd = ydd_limit;
-            elseif yd > 0.001 % if going counter clockwise around circle
-                ydd = - fric_S - fric_D * yd; % ydd should always be negative
-            elseif yd < -0.001 % if going clockwise around circle
-                ydd = fric_S - fric_D * yd; % ydd shold always be positive
+            if (check_surf_type(z(1:2)) == 0) %ice
+                static = 0.01;
+                dynamic = 0.01;
+                max_force = 10;
             else
-                ydd = 0;
-                yd = 0;
+                static = obj.bot.TracStaticMu;
+                dynamic = obj.bot.TracDynamicMu;
+                max_force = 150;
             end
-                            
-            dz = [xdd;ydd];
             
+            [xdd,ydd,tdd] = diff_drive_dynamics(obj.bot, xd, yd, w, u(1), u(2), dynamic, static, max_force);            
+            dz = [xdd,ydd,tdd];
         end
         
         function [z_new, unsafe] = forward(obj, z0, u)
@@ -219,21 +221,26 @@ classdef DubbinsEnv
             psi = z(3); %angle
             xd = z(4);  %linear velocity
             yd = z(5);  %slip velocity
-            psd = u(2); %angular velocity
+            w = z(6); %angular velocity
             
-            [xdd, ydd] = getAccel(z,u);            
+            accel = obj.getAccel(z,u);            
+            tdd = accel(3);
+            xdd = accel(1);
+            ydd = accel(2);
             
+            w = w + tdd*obj.dt;
             xd = xd + xdd*obj.dt;
             yd = yd + ydd*obj.dt;
-            psd = u(2);
+            
+            psi = psi + w*obj.dt;
             
             vx = xd*cos(psi) - yd*sin(psi);
-            vy = xd*sin(psi) + yd*cod(psi);
+            vy = xd*sin(psi) + yd*cos(psi);
             
             x = x + vx*obj.dt;
             y = y + vy*obj.dt;
             
-            z_new = [x;y;psi;xd;yd;psd];
+            z_new = [x;y;psi;xd;yd;w];
             
         end
         
@@ -333,8 +340,8 @@ classdef DubbinsEnv
            
             X = zeros(K,length(x));
             X(:,[4,6]) = randn(K,2).*0.05;
-            U = randn(K,length(u)).*0.05;
-            y = zeros(K,2);
+            U = randn(K,length(u)).*10;
+            y = zeros(K,3);
             for i = 1:1:length(X(:,1))
                 dz = obj.getAccel(X(i,:),U(i,:));
                 y(i,:) = dz';
@@ -445,89 +452,98 @@ classdef DubbinsEnv
             
         end
         
-        function [X, y, obj] = run_sim(obj, traj, cov, x, policy, invGP, SHOWPLOT)
+        function [GP, invGP, iceGP, inviceGP, obj] = run_sim(obj, traj, cov, x, policy, GP, invGP, iceGP, inviceGP, SHOWPLOT, run_ff)
             
            
-            iters = obj.DELTA_T/obj.dt;
-            X = zeros((length(traj(:,1))-2)*iters,3);
-            y = zeros(length(X),1);
+            iters = round(obj.DELTA_T/obj.dt);
+            obj.dt = obj.DELTA_T/iters;
+            X = zeros((length(traj(:,1))-2)*iters,8);
+            y = zeros(length(X),3);
+            
+            
+            c=obj.POINTS_IN_TRAJ+1;
+
+            psi_targ = zeros(obj.POINTS_IN_TRAJ+2,1);
+            psi_targ(end,1) = pi;
+            for n = length(traj(:,1))-1:-1:2
+                %global vels
+                qd_targ = (traj(n+1,1:obj.TRAJ_DIMS)' - traj(n-1,1:obj.TRAJ_DIMS)')./(2.*obj.DELTA_T);
+                psi_targ(c,1) = atan2(qd_targ(2),qd_targ(1));
+                c=c-1;
+            end
+            
             c=1;
             for n = 2:1:length(traj(:,1))-1
                 
+                
+                %global accels
+                qdd_targ = ([traj(n-1,1:obj.TRAJ_DIMS),psi_targ(n-1,1)]' - 2.*[traj(n,1:obj.TRAJ_DIMS),psi_targ(n,1)]' + [traj(n+1,1:obj.TRAJ_DIMS),psi_targ(n+1,1)]')./(obj.DELTA_T^2);
+                %global vels
+                qd_targ = ([traj(n+1,1:obj.TRAJ_DIMS),psi_targ(n+1,1)]' - [traj(n-1,1:obj.TRAJ_DIMS),psi_targ(n-1,1)]')./(2.*obj.DELTA_T);
+                psi = atan2(qd_targ(2),qd_targ(1));
+                if qd_targ(3,1) < -pi
+                    qd_targ(3,1) = qd_targ(3,1) + 2*pi;
+                elseif (qd_targ(3,1) > pi)
+                    qd_targ(3,1) = qd_targ(3,1) - 2*pi;
+                end
+
+                R = [cos(psi), sin(psi), 0; -sin(psi) cos(psi), 0; 0, 0, 1];
+
+                qdd = R*qdd_targ;
+                qd = R*qd_targ;
+                
+                if (qdd(3) > obj.QDD_MAX(3))
+                    qdd(3) = obj.QDD_MAX(3);
+                elseif (qdd(3) < obj.QDD_MIN(3))
+                    qdd(3) = obj.QDD_MIN(3);
+                end
+
+                q_targ = [traj(n,1:obj.TRAJ_DIMS)'; psi];
                 
                 p_idx = n-1;
                 
                 
                 limiting = false;
-                K = reshape(policy(p_idx,:),1,2);
+                K = reshape(policy(p_idx,:),2,6);
                 for j = 1:1:iters
                     
-                    xe = (traj(n,1:2) - x)';
-                    qd = xe(1)/(iters*obj.dt);
-                    qdd = (qd - x(2))/(iters*obj.dt);
-                    qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
-                    
-                    [u, ~] = invGP.query_data_point([x,qdd]);
-                    u = -K*xe + u;
-                    unew = min(obj.U_MAX,max(obj.U_MIN,u));
-                    if unew ~= u
-                        
-                        limiting = true;
+                    xe = ([q_targ; qd]' - x)';
+%                     qd = xe(1)/(obj.DELTA_T);
+%                     qdd = (qd - x(2))/(obj.DELTA_T);
+%                     qdd = min(obj.maxQdd,max(-obj.maxQdd,qdd));
+                    u = zeros(1,2);
+                    if (run_ff)
+                        [u, ~] = invGP.query_data_point([x(4:6),qdd']);
                     end
-                    u = unew;
+                    u = -K*xe + u';
+                    u(1) = min(obj.U_MAX(1),max(obj.U_MIN(1),u(1)));
+                    u(2) = min(obj.U_MAX(2),max(obj.U_MIN(2),u(2)));
+
                     
-                    y(c,1) = obj.getAccel(x,u);
-                    if abs(y(c,1)) > obj.maxQdd
-                        obj.maxQdd = y(c,1);
+                    y(c,:) = obj.getAccel(x,u);
+                    %if abs(y(c,1)) > obj.maxQdd
+                    %    obj.maxQdd = y(c,1);
+                    %end
+                    X(c,:) = [x, u'];
+                    
+                    if (check_surf_type([x(1),x(2)])==0)
+                        iceGP = iceGP.add_training_data(X(c,4:8),y(c,:));
+                        inviceGP = inviceGP.add_training_data([X(c,4:6), y(c,:)], X(c,7:8));
+                    else
+                        GP = GP.add_training_data(X(c,4:8),y(c,:));
+                        invGP = invGP.add_training_data([X(c,4:6), y(c,:)], X(c,7:8));  
                     end
-                    X(c,:) = [x, u];
-                    
-                    [x, ~] = obj.forward(x,u);
+                    x = obj.forward_dyn(x,u')';
                     c = c + 1;
                 end
                 
                 if SHOWPLOT
                     figure(4)
                     clf;
-                    pts = [-0.1, 0;...
-                           -0.1, obj.l;...
-                           0.1, obj.l;...
-                           0.1, 0;...
-                           -0.1, 0];
-                    
-                    th = traj(n,1)+pi;
-                    R = [cos(th), -sin(th); sin(th), cos(th)];
-                    npts = pts*R;
-
-                    s = sqrt(cov(p_idx,1))*1.96;
-                    ths = linspace(-s+th,s+th,100)';
-                    cpts = zeros(length(ths),2);
-                    for p = 1:1:length(ths)
-                        R = [cos(ths(p)), -sin(ths(p)); sin(ths(p)), cos(ths(p))];
-                        r = [0; obj.l];
-                        cpts(p,:) = (r'*R);
-                    end
-                    plot(npts(:,1),npts(:,2));
+                    obj.f_map([0,0]);
                     hold on
-                    plot(cpts(:,1),cpts(:,2),'r');
-
-                    s = sqrt(cov(p_idx,2))*1.96;
-                    ths = [0, -s + obj.l; 0, s + obj.l];
-                    R = [cos(th), -sin(th); sin(th), cos(th)];
-                    cpts = ths*R;
-                    plot(cpts(:,1),cpts(:,2),'r');
-
-
-                    th = x(1,1)+pi;
-                    R = [cos(th), -sin(th); sin(th), cos(th)];
-                    npts = pts*R;
-                    if ~limiting
-                        plot(npts(:,1),npts(:,2),'g');
-                    else
-                        plot(npts(:,1),npts(:,2),'r');
-                    end
-                    xlim([-2.5, 2.5])
-                    ylim([-1.2, 1.2])
+                    PlotBot(x(1),x(2),x(3))
+                    PlotBot(q_targ(1),q_targ(2),q_targ(3))
                     pause(0.1)
                     hold off
                 end

@@ -9,6 +9,7 @@ classdef LocalGP
         
         hp              %hyperparams
         w_lim           %distance limit for adding a new point
+        SF
     end
     
     methods
@@ -26,8 +27,10 @@ classdef LocalGP
         
         function [A,B] = linearize(obj,x,u)
             X = [x,u];
-            
-            w_max = 0;
+            X = X./obj.hp.SF(1:length(X));
+            x = X(1:length(x));
+            u = X(length(x)+1:end);
+            w_max = -1;
             for i=1:1:obj.num_models
                w = obj.model_list{i}.calc_dist(X);
                if (w > w_max)
@@ -37,10 +40,15 @@ classdef LocalGP
             end
             
             [A, B] = obj.model_list{closest_model}.linearize(x,u);
+            A = A .* (obj.hp.SF(length(X)+1:end)'*(1./obj.hp.SF(1:length(x))));
+            B = B .* (obj.hp.SF(length(X)+1:end)'*(1./obj.hp.SF(length(x)+1:length(X))));
             
         end
         
         function obj = add_training_data(obj,X,y)
+            
+            X = X./obj.hp.SF(1:length(X));
+            y = y./obj.hp.SF(length(X)+1:end);
             
             w_max = -2;
             for i=1:1:obj.num_models
@@ -69,6 +77,7 @@ classdef LocalGP
         
         function [y, v] = query_data_point(obj, X)
             
+            X = X./obj.hp.SF(1:length(X));
             w = zeros(obj.num_models,1);
             ybar = zeros(obj.num_models,obj.model_list{1}.nY);
             for i = 1:1:obj.num_models
@@ -81,11 +90,13 @@ classdef LocalGP
             if sum(w) < 0.00000001
                ofuck=true; 
             end
-            y = (sum(repmat(w,1,length(ybar(1,:))).*ybar)+0.00000001)./(sum(w)+0.00000001);
-            v = min(V);
-            [m i] = max(w);
-            y = ybar(i,:);
             
+            y = (sum(repmat(w,1,length(ybar(1,:))).*ybar,1)+0.00000001)./(sum(w)+0.00000001);
+            v = min(V);
+%             [m i] = max(w);
+%             y = ybar(i,:);
+            y = y.*obj.hp.SF(length(X)+1:end);
+            v = v.*(obj.hp.SF(length(X)+1)^2);
         end
         
         function plot(obj, x, idx, p,l1,l2)

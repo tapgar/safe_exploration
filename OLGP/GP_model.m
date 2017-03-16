@@ -51,14 +51,18 @@ classdef GP_model
                 
                 
                 dist = obj.calc_dist(newX);
-                idx = randi(obj.num_pts);
-                x = obj.X(idx,:);
-                dist2 = obj.calc_dist(x);
-                if (dist > dist2)
-                   
-                    obj.X(idx,:) = newX;
-                    obj.y(idx,:) = newY;
-                    obj = obj.ComputeKernel(newX, idx);
+                found = false;
+                for j = 1:1:10
+                    idx = randi(obj.num_pts);
+                    x = obj.X(idx,:);
+                    dist2 = obj.calc_dist(x);
+                    if (dist > dist2)
+                        obj.X(idx,:) = newX;
+                        obj.y(idx,:) = newY;
+                        obj = obj.ComputeKernel(newX, idx);
+                        break;
+                    end
+                    
                 end
                 %calc info gain for this sample
 %                 infG = obj.ComputeInfoGain(newX,newY);
@@ -182,7 +186,7 @@ classdef GP_model
             
             x_diff = ones(obj.num_pts,1)*newX - obj.X(1:obj.num_pts,:);
             Knew = obj.hp.sig_std.*exp(-0.5*(x_diff.^2)*diag(obj.hp.W));
-            dfdx = -(1\obj.hp.W)*x_diff'*((Knew*ones(1,2)).*(obj.invK(1:obj.num_pts,1:obj.num_pts)*obj.y(1:obj.num_pts,:)));
+            dfdx = -(1\obj.hp.W)*x_diff'*((Knew*ones(1,length(obj.y(1,:)))).*(obj.invK(1:obj.num_pts,1:obj.num_pts)*obj.y(1:obj.num_pts,:)));
                        
             A = dfdx(1:length(x),:)';
             B = dfdx(length(x)+1:end,:)';
