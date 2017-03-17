@@ -1,4 +1,4 @@
-function u = STOMP(env, K, GP, invGP, cost_func)
+function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
     % env should have initial trajectories.  Only using physical position
     % of points (q)
     
@@ -70,7 +70,7 @@ function u = STOMP(env, K, GP, invGP, cost_func)
         for i_K = 1:K
             traj = [env.START_STATE(1:env.TRAJ_DIMS); reshape(STOMP_traj{i_K}(:, 1),env.POINTS_IN_TRAJ,2); env.END_STATE(1:env.TRAJ_DIMS)];
             %[policy, cov, ~, ~] = LQR_GP(traj,GP,10.*eye(2),1,[]);
-            pcost = cost_func(2.2, traj, env);
+            pcost = cost_func(2.2, traj, env, GP, invGP, icyGP, invicyGP);
             cost(i_K,:) = [pcost', pcost'];
         end
         importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_INPUTS);
@@ -145,7 +145,7 @@ function u = STOMP(env, K, GP, invGP, cost_func)
 
         nom_traj = u_traj_new;
         noise_factor = noise_cooling * noise_factor;
-        Q_traj = sum(collision_cost_function(2.2,traj,env)) + sum(0.5 * traj(2:end-1,:)' * R * traj(2:end-1,:));
+        Q_traj = sum(collision_cost_function(2.2,traj,env, GP, invGP, icyGP, invicyGP)) + sum(0.5 * traj(2:end-1,:)' * R * traj(2:end-1,:));
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
         if Q_diff < 0.000005  %1% decrease
             Q_conv_counter = Q_conv_counter + 1;

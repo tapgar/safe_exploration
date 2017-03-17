@@ -52,7 +52,7 @@ for n = N+1:-1:2
     qdd = R*qdd_targ;
     qd = R*qd_targ;
     
-    q_targ = [traj(n,1:env.TRAJ_DIMS-1)'; psi];
+    q_targ = [traj(n,1:env.TRAJ_DIMS)'; psi];
     
     if (check_surf_type([q_targ(1),q_targ(2)])==0)
         [u, ~] = inviceGP.query_data_point([qd', qdd']);
@@ -110,7 +110,7 @@ for n = 2:1:N+1
         qdd(3) = env.QDD_MIN(3);
     end
     
-    q_targ = [traj(n,1:env.TRAJ_DIMS-1)'; psi];
+    q_targ = [traj(n,1:env.TRAJ_DIMS)'; psi];
     
     if (check_surf_type([q_targ(1),q_targ(2)])==0)
         [u, ~] = inviceGP.query_data_point([qd', qdd']);

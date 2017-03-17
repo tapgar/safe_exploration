@@ -31,6 +31,7 @@ classdef LocalGP
             x = X(1:length(x));
             u = X(length(x)+1:end);
             w_max = -1;
+            closest_model = 1;
             for i=1:1:obj.num_models
                w = obj.model_list{i}.calc_dist(X);
                if (w > w_max)

@@ -1,8 +1,8 @@
 clear
 close all
 
-for_hp = struct('y_std',0.001,'sig_std',0.05,'W',eye(5),'SF',[20,1,4,400,400,10,5,15]);
-inv_hp = struct('y_std',0.001,'sig_std',0.05,'W',eye(6),'SF',[20,1,4,10,5,15,400,400]);
+for_hp = struct('y_std',0.001,'sig_std',0.05,'W',5.*eye(5),'SF',[20,1,4,400,400,10,5,15]);
+inv_hp = struct('y_std',0.001,'sig_std',0.05,'W',5.*eye(6),'SF',[20,1,4,10,5,15,400,400]);
 
 GP = LocalGP(200, 50, 0.5, for_hp);
 icyGP = LocalGP(200, 50, 0.5, for_hp);
@@ -27,11 +27,10 @@ env = env.NominalTrajectory(GP,icyGP);
 % hold on
 % plot(env.U_NOM(1,:),env.U_NOM(2,:));
 
+u = STOMP(env, 20, GP, invGP, icyGP, invicyGP, @collision_cost_function);
+% env.U_NOM = [u(2:end-1,:),zeros(length(u)-2,1)]';
     
 for k = 1:1:10
-
-    u = STOMP(env, 40, GP, invGP, @collision_cost_function);
-    env.U_NOM = [u(2:end-1,:),zeros(length(u)-2,1)]';
     
     [ L_rec, cov, ~, ~, IG ] = LQR_GP( env, u, GP, invGP, icyGP, invicyGP, 100.*diag([100, 100, 100, 2, 2, 2]), eye(2));
     IG(find(IG < 0)) = 0;

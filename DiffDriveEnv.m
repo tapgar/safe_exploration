@@ -46,7 +46,7 @@ classdef DiffDriveEnv
             end
             
             obj.f_map = f_map;   % Map is a function that returns safety in a map
-            obj.POINTS_IN_TRAJ = 50;
+            obj.POINTS_IN_TRAJ = 100;
             obj.TRAJ_DIMS = 2;
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0.5, 0.5, 0, 0, 0, 0];
@@ -371,6 +371,58 @@ classdef DiffDriveEnv
             end
             
         end
+        
+        function [x, y]  = get_nearest_obstacle(obj,x,y,dx,dy)
+           
+            if (obj.collision([x,y],[x,y]) || x < 0 || x > 10 || y < 0 || y > 10)
+                return;
+            end
+            
+%             i_o = 1;
+%             obstacle{i_o} = [0,6; 7,6; 7,8; 0,8]; i_o = i_o + 1;
+%             obstacle{i_o} = [0,10; 4.5,10; 4.5,8; 0,8];
+            
+            pts = [0,6;...
+                   7,6;...
+                   7,8;...
+                   0,8;...
+                   0,10;...
+                   4.5,10;...
+                   4.5,8;...
+                   0,8;...
+                   0,y;...
+                   10,y;...
+                   x,0;...
+                   x,10];
+           aux_pts = zeros(10,2);
+           c=1;
+           if (x > 0 && x < 7 && y < 6)
+               aux_pts(c,:) = [x,6];
+               c = c +1;
+           end
+           
+           if (x > 7 && y > 6 && y < 8)
+               aux_pts(c,:) = [7,y];
+               c = c +1;
+           end
+           
+           if (x > 4.5 && y > 8)
+               aux_pts(c,:) = [4.5,y];
+               c = c +1;
+               if (x < 7)
+                   aux_pts(c,:) = [x,8];
+                   c = c + 1;
+               end
+           end
+           
+           all_pts = [pts; aux_pts(1:c-1,:)];
+           
+           [~, n] = min(((all_pts(:,1) - x).^2./dx) + ((all_pts(:,2) - y).^2./dy));
+           
+           x = all_pts(n,1);
+           y = all_pts(n,2);
+           
+        end
             
         function [X, y] = plot(obj, traj, cov, x, policy, invGP)
            
@@ -502,9 +554,9 @@ classdef DiffDriveEnv
                 
                 p_idx = n-1;
                 
-                
+                [ policy, ~, ~, ~, ~ ] = LQR_GP( obj, traj(n-1:end,:), GP, invGP, iceGP, inviceGP, 100.*diag([100, 100, 100, 2, 2, 2]), eye(2));
                 limiting = false;
-                K = reshape(policy(p_idx,:),2,6);
+                K = reshape(policy(1,:),2,6);
                 for j = 1:1:iters
                     
                     xe = ([q_targ; qd]' - x)';
