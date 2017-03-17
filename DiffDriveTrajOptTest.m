@@ -1,8 +1,8 @@
 clear
 close all
 
-for_hp = struct('y_std',0.001,'sig_std',0.05,'W',5.*eye(5),'SF',[20,1,4,400,400,10,5,15]);
-inv_hp = struct('y_std',0.001,'sig_std',0.05,'W',5.*eye(6),'SF',[20,1,4,10,5,15,400,400]);
+for_hp = struct('y_std',0.001,'sig_std',0.05,'W',50.*eye(5),'SF',[20,1,4,400,400,10,5,15]);
+inv_hp = struct('y_std',0.001,'sig_std',0.05,'W',50.*eye(6),'SF',[20,1,4,10,5,15,400,400]);
 
 GP = LocalGP(200, 50, 0.5, for_hp);
 icyGP = LocalGP(200, 50, 0.5, for_hp);

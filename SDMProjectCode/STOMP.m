@@ -23,7 +23,7 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
     time_array = env.DELTA_T * linspace(0, env.POINTS_IN_TRAJ, 2+env.POINTS_IN_TRAJ);
     nom_traj = reshape(env.U_NOM',env.POINTS_IN_TRAJ*3,1);                           % nominal initial trajectory
     nom_traj = nom_traj(1:env.POINTS_IN_TRAJ*2,1);
-    noise_factor = 500/env.POINTS_IN_TRAJ;
+    noise_factor = 1000/env.POINTS_IN_TRAJ;
     noise_cooling = 0.95;                          % cooling rate for noise
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
@@ -145,7 +145,7 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
 
         nom_traj = u_traj_new;
         noise_factor = noise_cooling * noise_factor;
-        Q_traj = sum(collision_cost_function(2.2,traj,env, GP, invGP, icyGP, invicyGP)) + sum(0.5 * traj(2:end-1,:)' * R * traj(2:end-1,:));
+        Q_traj = 1000*sum(collision_cost_function(2.2,traj,env, GP, invGP, icyGP, invicyGP)) + sum(0.5 * traj(2:end-1,:)' * R * traj(2:end-1,:));
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
         if Q_diff < 0.000005  %1% decrease
             Q_conv_counter = Q_conv_counter + 1;

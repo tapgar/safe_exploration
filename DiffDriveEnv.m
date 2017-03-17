@@ -596,7 +596,7 @@ classdef DiffDriveEnv
                     hold on
                     PlotBot(x(1),x(2),x(3))
                     PlotBot(q_targ(1),q_targ(2),q_targ(3))
-                    pause(0.1)
+                    pause(0.001)
                     hold off
                 end
 
