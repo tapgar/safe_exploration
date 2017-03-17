@@ -52,6 +52,20 @@ for n = N+1:-1:2
     qdd = R*qdd_targ;
     qd = R*qd_targ;
     
+    if (qdd(3) > env.QDD_MAX(3))
+        qdd(3) = 0;%env.QDD_MAX(3);
+    elseif (qdd(3) < env.QDD_MIN(3))
+        qdd(3) = 0;%env.QDD_MIN(3);
+    end
+    
+    for i = 1:1:3
+        if (qd(i) > env.QD_MAX(i))
+            qd(i) = env.QD_MAX(i);
+        elseif (qd(i) < env.QD_MIN(i))
+            qd(i) = env.QD_MIN(i);
+        end
+    end
+    
     q_targ = [traj(n,1:env.TRAJ_DIMS)'; psi];
     
     if (check_surf_type([q_targ(1),q_targ(2)])==0)
@@ -65,8 +79,10 @@ for n = N+1:-1:2
     
     A = eye(6);
     B = zeros(6,2);
+    A(1,3) = -qd(1)*sin(psi)*dt - qd(2)*cos(psi)*dt;
     A(1,4) = cos(psi)*dt;
     A(1,5) = -sin(psi)*dt;
+    A(2,3) = qd(1)*cos(psi)*dt - qd(2)*sin(psi)*dt;
     A(2,4) = sin(psi)*dt;
     A(2,5) = cos(psi)*dt;
     A(3,6) = dt;
@@ -105,9 +121,17 @@ for n = 2:1:N+1
     qd = rot*qd_targ;
     
     if (qdd(3) > env.QDD_MAX(3))
-        qdd(3) = env.QDD_MAX(3);
+        qdd(3) = 0;%env.QDD_MAX(3);
     elseif (qdd(3) < env.QDD_MIN(3))
-        qdd(3) = env.QDD_MIN(3);
+        qdd(3) = 0;%env.QDD_MIN(3);
+    end
+    
+    for i = 1:1:3
+        if (qd(i) > env.QD_MAX(i))
+            qd(i) = env.QD_MAX(i);
+        elseif (qd(i) < env.QD_MIN(i))
+            qd(i) = env.QD_MIN(i);
+        end
     end
     
     q_targ = [traj(n,1:env.TRAJ_DIMS)'; psi];
@@ -125,8 +149,10 @@ for n = 2:1:N+1
     A = eye(6);
     B = zeros(6,2);
 
+    A(1,3) = -qd(1)*sin(psi)*dt - qd(2)*cos(psi)*dt;
     A(1,4) = cos(psi)*dt;
     A(1,5) = -sin(psi)*dt;
+    A(2,3) = qd(1)*cos(psi)*dt - qd(2)*sin(psi)*dt;
     A(2,4) = sin(psi)*dt;
     A(2,5) = cos(psi)*dt;
     A(3,6) = dt;
@@ -138,9 +164,9 @@ for n = 2:1:N+1
        
    L = reshape(L_rec(p_idx,:),nU,nX);
    COV = zeros(6);
-   COV(4,4) = SIG*dt;
-   COV(5,5) = SIG*dt;
-   COV(6,6) = SIG*dt;
+   COV(4,4) = 100*SIG*dt;
+   COV(5,5) = 25*SIG*dt;
+   COV(6,6) = (15^2)*SIG*dt;
    R = (A + B*L)*R*(A + B*L)' + COV;
    
    if (check_surf_type([q_targ(1),q_targ(2)])==0)

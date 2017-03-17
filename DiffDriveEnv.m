@@ -55,8 +55,8 @@ classdef DiffDriveEnv
             obj.U_MIN = [-150, -150];
             obj.QDD_MAX = [2.5, 1.0, 3];
             obj.QDD_MIN = [-2.5, -1.0, -3];
-            obj.QD_MAX = [5, 1.5];
-            obj.QD_MIN = [-5, -1.5];
+            obj.QD_MAX = [5, 0.2, 1.5];
+            obj.QD_MIN = [-5, -0.2, -1.5];
             obj.R_MIN = 0.5;
             obj.NUM_OF_INPUTS = 2;
             

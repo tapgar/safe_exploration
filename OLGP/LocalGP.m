@@ -97,7 +97,7 @@ classdef LocalGP
 %             [m i] = max(w);
 %             y = ybar(i,:);
             y = y.*obj.hp.SF(length(X)+1:end);
-            v = v.*(obj.hp.SF(length(X)+1)^2);
+%             v = v.*(obj.hp.SF(length(X)+1)^2);
         end
         
         function plot(obj, x, idx, p,l1,l2)
