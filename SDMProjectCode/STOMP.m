@@ -1,4 +1,4 @@
-function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
+function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, IG, s, cost_func, nf, sf)
     % env should have initial trajectories.  Only using physical position
     % of points (q)
     
@@ -23,8 +23,8 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
     time_array = env.DELTA_T * linspace(0, env.POINTS_IN_TRAJ, 2+env.POINTS_IN_TRAJ);
     nom_traj = reshape(env.U_NOM',env.POINTS_IN_TRAJ*3,1);                           % nominal initial trajectory
     nom_traj = nom_traj(1:env.POINTS_IN_TRAJ*2,1);
-    noise_factor = 1000/env.POINTS_IN_TRAJ;
-    noise_cooling = 0.95;                          % cooling rate for noise
+    noise_factor = nf/env.POINTS_IN_TRAJ;
+    noise_cooling = 0.9;                          % cooling rate for noise
     Q_diff = 10^10;                         % difference between successive trajectories
     Q_prev = 10^10;                         % cost of previous trajectory
     Q_prev_arr = 0;
@@ -40,7 +40,7 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
     STOMP_3            = false;  %viusalize Q over time
     
     
-    
+    frame = 1;
     % K is number of noisy trajectories to try
     % env is the enviornment that we test over
     
@@ -70,7 +70,7 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
         for i_K = 1:K
             traj = [env.START_STATE(1:env.TRAJ_DIMS); reshape(STOMP_traj{i_K}(:, 1),env.POINTS_IN_TRAJ,2); env.END_STATE(1:env.TRAJ_DIMS)];
             %[policy, cov, ~, ~] = LQR_GP(traj,GP,10.*eye(2),1,[]);
-            pcost = cost_func(2.2, traj, env, GP, invGP, icyGP, invicyGP);
+            pcost = cost_func(sf, traj, env, GP, invGP, icyGP, invicyGP, IG, s);
             cost(i_K,:) = [pcost', pcost'];
         end
         importance_weighting = zeros(K, POINTS_IN_TRAJ, NUM_OF_INPUTS);
@@ -121,8 +121,31 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
             hold on
             for i_K = 1:K
                 traj2 = [env.START_STATE(1:env.TRAJ_DIMS); reshape(STOMP_traj{i_K},env.POINTS_IN_TRAJ,2); env.END_STATE(1:env.TRAJ_DIMS)];
-                plot(traj2(:,1),traj2(:,2))
+                plot3(traj2(:,1),traj2(:,2),[0,cost(i_K,1:75),0])
             end
+            
+%             cx = linspace(0,10,50);
+%             cy = linspace(0,10,50);
+%             cost_space = zeros(length(cx),length(cy));
+%             
+%             for i = 1:1:length(cx)
+%                 for j = 1:1:length(cy)
+%                     all_costs = zeros(K,env.POINTS_IN_TRAJ);
+%                     for i_K = 1:K
+%                         traj2 = reshape(STOMP_traj{i_K},env.POINTS_IN_TRAJ,2);
+%                         for t = 1:1:length(traj2)
+%                             all_costs(i_K,t) =  cost(i_K,t)*exp((-((cx(i)-traj2(t,2))^2 + (cy(j)-traj2(t,1))^2))/0.1);
+%                         end
+%                     end
+%                     cost_space(i,j) = max(max(all_costs));
+%                 end
+%             end
+%             %figure(3)
+%             %clf
+%             temp = imagesc(cx,cy,cost_space);
+%             alpha(temp,0.3)
+            
+            %imagesc(cost_space')
 %             title('Noisy Trajectories')
 %             hold off
 %                        
@@ -139,15 +162,17 @@ function u = STOMP(env, K, GP, invGP, icyGP, invicyGP, cost_func)
 %             hold on
 %             plot(time_array, traj, 'r*', time_array, qd_targ, 'b*', time_array, qdd_targ, 'g*')
             hold off
-            title('Completed STOMP Trajectory (Vel, Pos)')
+%             title('Completed STOMP Trajectory (Vel, Pos)')
             pause(.1)
+%             F(frame) = getframe;
+%             frame = frame + 1;
         end
 
         nom_traj = u_traj_new;
         noise_factor = noise_cooling * noise_factor;
-        Q_traj = 1000*sum(collision_cost_function(2.2,traj,env, GP, invGP, icyGP, invicyGP)) + sum(0.5 * traj(2:end-1,:)' * R * traj(2:end-1,:));
+        Q_traj = sum(100*sum(collision_cost_function(2.2,traj,env, GP, invGP, icyGP, invicyGP)) + sum(0.5 * traj(2:end-1,:)' * R * traj(2:end-1,:)));
         Q_diff = abs(Q_traj - Q_prev)/Q_prev;
-        if Q_diff < 0.000005  %1% decrease
+        if Q_diff < 0.00005  %1% decrease
             Q_conv_counter = Q_conv_counter + 1;
         else
             Q_conv_counter = 0;

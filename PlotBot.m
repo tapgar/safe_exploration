@@ -1,4 +1,4 @@
-function [  ] = PlotBot( x,y,yaw)
+function [  ] = PlotBot( x,y,yaw,color)
 zoom=0;
 window = 2;
 wheelsize=[.1,.05];
@@ -19,7 +19,7 @@ R=[cos(bot.theta),-sin(bot.theta);sin(bot.theta),cos(bot.theta)];
 rframe=R*bot.frame;
 rrwheel=R*bot.rwheel;
 rlwheel=R*bot.lwheel;
-fill(rframe(1,:)+bot.xpos,rframe(2,:)+bot.ypos,'b');    
+fill(rframe(1,:)+bot.xpos,rframe(2,:)+bot.ypos,color);    
 fill(rlwheel(1,:)+bot.xpos,rlwheel(2,:)+bot.ypos,[.8 .8 .8]);
 fill(rrwheel(1,:)+bot.xpos,rrwheel(2,:)+bot.ypos,[.8 .8 .8]);
 

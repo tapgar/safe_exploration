@@ -94,8 +94,8 @@ classdef LocalGP
             
             y = (sum(repmat(w,1,length(ybar(1,:))).*ybar,1)+0.00000001)./(sum(w)+0.00000001);
             v = min(V);
-%             [m i] = max(w);
-%             y = ybar(i,:);
+            [m i] = max(w);
+            y = ybar(i,:);
             y = y.*obj.hp.SF(length(X)+1:end);
 %             v = v.*(obj.hp.SF(length(X)+1)^2);
         end

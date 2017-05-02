@@ -1,4 +1,4 @@
-function [ cost ] = collision_cost_function( sf, traj, env, GP, invGP, icyGP, invicyGP )
+function [ cost ] = collision_cost_function( sf, traj, env, GP, invGP, icyGP, invicyGP, IG, s )
 
 [ ~, cov, ~, ~, IG ] = LQR_GP( env, traj, GP, invGP, icyGP, invicyGP, 100.*diag([100, 100, 100, 2, 2, 2]), eye(2));
 
@@ -8,11 +8,11 @@ for i = 2:1:length(traj(:,1))-1
 %         cost(i-1,1) = 10;
 %     end
     
-    [mx,my] = env.get_nearest_obstacle(traj(i,1), traj(i,2), cov(1), cov(2));
-    dx = [traj(i,1) - mx, traj(i,2) - my]*inv([cov(1), 0; 0, cov(2)])*[traj(i,1) - mx, traj(i,2) - my]';
-    cost(i-1,1) = 10.*exp(-dx);
+    [mx,my] = env.get_nearest_obstacle(traj(i,1), traj(i,2), cov(i-1,1), cov(i-1,2));
+    dx = [traj(i,1) - mx, traj(i,2) - my]*inv([cov(i-1,1), 0; 0, cov(i-1,2)])*[traj(i,1) - mx, traj(i,2) - my]';
+    cost(i-1,1) = 10.*exp(-5*dx);
 end
-% cost = flipud(cumsum(flipud(cost)));
+%cost = flipud(cumsum(flipud(cost)));
 
 
 % c=env.POINTS_IN_TRAJ+1;

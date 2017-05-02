@@ -1,4 +1,4 @@
-function [ L_rec, cov, GP, invGP, IG ] = LQR_GP( env, traj, GP, invGP, iceGP, inviceGP, C, D )
+function [ L_rec, cov, GP, invGP, IG, states ] = LQR_GP( env, traj, GP, invGP, iceGP, inviceGP, C, D )
 
 % Inputs
 %   traj - [q,qd,qdd] per row... N + 2 rows
@@ -17,6 +17,7 @@ nU = length(D);
 L_rec = zeros(N,nX*nU);
 
 cov=zeros(N,nX+nU);
+states=zeros(N,3+nU+1);
 
 dt = env.DELTA_T;
 
@@ -52,10 +53,12 @@ for n = N+1:-1:2
     qdd = R*qdd_targ;
     qd = R*qd_targ;
     
-    if (qdd(3) > env.QDD_MAX(3))
-        qdd(3) = 0;%env.QDD_MAX(3);
-    elseif (qdd(3) < env.QDD_MIN(3))
-        qdd(3) = 0;%env.QDD_MIN(3);
+    for i = 1:1:3
+        if (qdd(i) > env.QDD_MAX(i))
+            qdd(i) = 0;%env.QDD_MAX(3);
+        elseif (qdd(i) < env.QDD_MIN(i))
+            qdd(i) = 0;%env.QDD_MIN(3);
+        end
     end
     
     for i = 1:1:3
@@ -100,7 +103,8 @@ end
 R = 0.000001.*eye(nX);
 IG = zeros(N,1);
 
-for n = 2:1:N+1
+cov(1,:) = 0.0001.*ones(1,8);
+for n = 3:1:N+1
     
     p_idx = n-1;
     
@@ -138,10 +142,14 @@ for n = 2:1:N+1
     
     if (check_surf_type([q_targ(1),q_targ(2)])==0)
         [u, ~] = inviceGP.query_data_point([qd', qdd']);
+        u(1) = min(env.U_MAX(1),max(env.U_MIN(1),u(1)));
+        u(2) = min(env.U_MAX(2),max(env.U_MIN(2),u(2)));
         [qdd_actual, SIG] = iceGP.query_data_point([qd', u]);
         [a, b] = iceGP.linearize(qd',u);
     else
         [u, ~] = invGP.query_data_point([qd', qdd']);
+        u(1) = min(env.U_MAX(1),max(env.U_MIN(1),u(1)));
+        u(2) = min(env.U_MAX(2),max(env.U_MIN(2),u(2)));
         [qdd_actual, SIG] = GP.query_data_point([qd', u]);
         [a, b] = GP.linearize(qd',u);
     end
@@ -173,10 +181,12 @@ for n = 2:1:N+1
        iceGP = iceGP.add_training_data([qd', u],qdd_actual);
        inviceGP = inviceGP.add_training_data([qd',qdd_actual],u);
        [~, SIG2] = iceGP.query_data_point([qd', u]);
+       states(p_idx,:) = [1, qd', u];
    else
        GP = GP.add_training_data([qd', u],qdd_actual);
        invGP = invGP.add_training_data([qd',qdd_actual],u);
        [~, SIG2] = GP.query_data_point([qd', u]);
+       states(p_idx,:) = [0, qd', u];
    end
    
    if (SIG2 > SIG)

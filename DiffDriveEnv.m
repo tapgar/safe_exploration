@@ -46,15 +46,15 @@ classdef DiffDriveEnv
             end
             
             obj.f_map = f_map;   % Map is a function that returns safety in a map
-            obj.POINTS_IN_TRAJ = 100;
+            obj.POINTS_IN_TRAJ = 75;
             obj.TRAJ_DIMS = 2;
             obj.DELTA_T = 0.1;
             obj.START_STATE = [0.5, 0.5, 0, 0, 0, 0];
-            obj.END_STATE = [6.5, 9, -pi, 0, 0, 0];
+            obj.END_STATE = [6.5, 9, pi, 0, 0, 0];
             obj.U_MAX = [150, 150];
             obj.U_MIN = [-150, -150];
-            obj.QDD_MAX = [2.5, 1.0, 3];
-            obj.QDD_MIN = [-2.5, -1.0, -3];
+            obj.QDD_MAX = [3.6, 1.0, 3];
+            obj.QDD_MIN = [-3.6, -1.0, -3];
             obj.QD_MAX = [5, 0.2, 1.5];
             obj.QD_MIN = [-5, -0.2, -1.5];
             obj.R_MIN = 0.5;
@@ -124,10 +124,13 @@ classdef DiffDriveEnv
               obj.u_start = reshape(traj(obj.dircolPts*6+2:1+obj.dircolPts*8),obj.dircolPts*2,1);
         end
         
-        function obj = trajOptfromSTOMP(obj)
-           
-           obj.x_start(1:obj.dircolPts*2,1) = [decimate(obj.U_NOM(1,:),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
-                                               decimate(obj.U_NOM(2,:),obj.POINTS_IN_TRAJ/obj.dircolPts)'];
+        function obj = trajOptfromSTOMP(obj,yaw_start)
+%            eucDist = sqrt((obj.END_STATE(1)-obj.START_STATE(1))^2 + (obj.END_STATE(2)-obj.START_STATE(2))^2);
+%            obj.dircolPts = round(max(10,25*eucDist/sqrt(108.25)));
+%            obj.POINTS_IN_TRAJ = obj.dircolPts*3;
+           obj.x_start(1:obj.dircolPts*3,1) = [decimate(obj.U_NOM(1,:),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                                               decimate(obj.U_NOM(2,:),obj.POINTS_IN_TRAJ/obj.dircolPts)';...
+                                               linspace(yaw_start,obj.END_STATE(3),obj.dircolPts)'];
         end
         
         function optimal = DirColTrajectory(obj, GP, icyGP)
@@ -142,7 +145,7 @@ classdef DiffDriveEnv
                   obj.x_start;...
                   obj.v_start;...
                   obj.u_start;...
-                  zeros(gridN*2,1)];
+                  zeros(gridN*3,1)];
 
             % No linear inequality or equality constraints
             A = [];
@@ -151,36 +154,38 @@ classdef DiffDriveEnv
             Beq = [];
 
 
-            f = @(x)diff_drive_constraints(x, GP, icyGP, gridN, @check_surf_type);
+            f = @(x)diff_drive_constraints(x, GP, icyGP, gridN, obj, @check_surf_type);
 
             lb = [0;...
                   zeros(gridN, 1);... %x
                   zeros(gridN, 1);... %y
-                  -ones(gridN,1)*Inf;... %yaw
-                  ones(gridN,1)*obj.QD_MIN(1);...
+                  -ones(gridN,1)*2*pi;... %yaw
                   ones(gridN,1)*obj.QD_MIN(1);...
                   ones(gridN,1)*obj.QD_MIN(2);...
+                  ones(gridN,1)*obj.QD_MIN(3);...
                   ones(gridN, 1) * obj.U_MIN(1);...
                   ones(gridN, 1) * obj.U_MIN(2);...
-                  ones(gridN,1)*obj.U_MIN(1);...
-                  ones(gridN,1)*obj.U_MIN(2)];
+                  ones(gridN,1)*obj.QDD_MIN(1);...
+                  ones(gridN,1)*obj.QDD_MIN(2);...
+                  ones(gridN,1)*obj.QDD_MIN(3)];
               
             ub = [Inf;...
                 ones(gridN, 1).*10;...
                 ones(gridN, 1).*10;...
-                ones(gridN,1)*Inf;...
-                ones(gridN,1)*obj.QD_MAX(1);...
+                ones(gridN,1)*2*pi;...
                 ones(gridN,1)*obj.QD_MAX(1);...
                 ones(gridN,1)*obj.QD_MAX(2);...
+                ones(gridN,1)*obj.QD_MAX(3);...
                 ones(gridN, 1) * obj.U_MAX(1);...
                 ones(gridN, 1) * obj.U_MAX(2);...
-                ones(gridN,1)*obj.U_MAX(1);...
-                ones(gridN,1)*obj.U_MAX(2)];
+                ones(gridN,1)*obj.QDD_MAX(1);...
+                ones(gridN,1)*obj.QDD_MAX(2);...
+                ones(gridN,1)*obj.QDD_MAX(3)];
             
             % Options for fmincon
             options = optimoptions(@fmincon, 'TolFun', 0.0001, 'MaxIter', 10000, ...
                                    'MaxFunEvals', 100000, 'Display', 'iter', ...
-                                   'DiffMinChange', 0.01, 'Algorithm', 'sqp');
+                                   'DiffMinChange', 0.05, 'Algorithm', 'sqp');
             % Solve for the best simulation time + control input
             optimal = fmincon(time_min, x0, A, b, Aeq, Beq, lb, ub, ...
                           f, options);
@@ -195,9 +200,9 @@ classdef DiffDriveEnv
             w = z(6); %angular velocity
             
             if (check_surf_type(z(1:2)) == 0) %ice
-                static = 0.01;
-                dynamic = 0.01;
-                max_force = 10;
+                static = 0.001;
+                dynamic = 0.001;
+                max_force = 1;
             else
                 static = obj.bot.TracStaticMu;
                 dynamic = obj.bot.TracDynamicMu;
@@ -504,7 +509,7 @@ classdef DiffDriveEnv
             
         end
         
-        function [GP, invGP, iceGP, inviceGP, obj] = run_sim(obj, traj, cov, x, policy, GP, invGP, iceGP, inviceGP, SHOWPLOT, run_ff)
+        function [GP, invGP, iceGP, inviceGP, obj, x, F] = run_sim(obj, traj, cov, x, policy, GP, invGP, iceGP, inviceGP, SHOWPLOT, run_ff, F, fnum)
             
            
             iters = round(obj.DELTA_T/obj.dt);
@@ -594,10 +599,12 @@ classdef DiffDriveEnv
                     clf;
                     obj.f_map([0,0]);
                     hold on
-                    PlotBot(x(1),x(2),x(3))
-                    PlotBot(q_targ(1),q_targ(2),q_targ(3))
+                    PlotBot(x(1),x(2),x(3),'b')
+                    PlotBot(q_targ(1),q_targ(2),q_targ(3),'r')
                     pause(0.001)
+                    F(fnum+n-2) = getframe;
                     hold off
+                    
                 end
 
             end

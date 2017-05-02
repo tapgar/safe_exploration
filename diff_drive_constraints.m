@@ -1,4 +1,4 @@
-function [ c, ceq ] = diff_drive_constraints( traj_pts, GP, iceGP, gridN, check_surf_type )
+function [ c, ceq ] = diff_drive_constraints( traj_pts, GP, iceGP, gridN, env, check_surf_type )
     
     % No nonlinear inequality constraint needed
     c = [];
@@ -19,9 +19,10 @@ function [ c, ceq ] = diff_drive_constraints( traj_pts, GP, iceGP, gridN, check_
     
     delxdd = traj_pts(2+gridN*8:1+gridN*9);
     delydd = traj_pts(2+gridN*9:1+gridN*10);
+    deltdd = traj_pts(2+gridN*10:1+gridN*11);
     
     % Constrain initial position and velocity to be zero
-    ceq = [x(1) - 0.5; y(1)-0.5; yaw(1); xd(1); yd(1); psd(1)];
+    ceq = [x(1)-env.START_STATE(1); y(1)-env.START_STATE(2); yaw(1)-env.START_STATE(3); xd(1); yd(1); psd(1)];
     for i = 1 : length(x) - 1
         % The state at the beginning of the time interval
         x_i = [x(i); y(i); yaw(i); xd(i); yd(i); psd(i)];
@@ -35,7 +36,8 @@ function [ c, ceq ] = diff_drive_constraints( traj_pts, GP, iceGP, gridN, check_
             [qdd, vr] = iceGP.query_data_point([xd(i),yd(i),psd(i),uL(i),uR(i)]);
         end
         
-        qdd = qdd + [delxdd(i),delydd(i),0].*sqrt(vr);
+        
+        qdd = qdd + [delxdd(i)/sqrt(vr*100),delydd(i)/sqrt(vr*25),deltdd(i)/sqrt(vr*225)];
         xdot_i = [xd(i); yd(i); psd(i); qdd'];
         
         if (check_surf_type([x(i+1),y(i+1)])==0)
@@ -44,7 +46,7 @@ function [ c, ceq ] = diff_drive_constraints( traj_pts, GP, iceGP, gridN, check_
             [qdd, vr] = iceGP.query_data_point([xd(i+1),yd(i+1),psd(i+1),uL(i+1),uR(i+1)]);
         end
         
-        qdd = qdd + [delxdd(i+1),delydd(i+1),0].*sqrt(vr);
+        qdd = qdd + [delxdd(i+1)/sqrt(vr*100),delydd(i+1)/sqrt(vr*25),deltdd(i+1)/sqrt(vr*225)];
         xdot_n = [xd(i+1); yd(i+1); psd(i+1); qdd'];
         
         vx = xdot_i(1) + delta_time*(xdot_i(4) + xdot_n(4))/2;
@@ -63,5 +65,5 @@ function [ c, ceq ] = diff_drive_constraints( traj_pts, GP, iceGP, gridN, check_
         
     end
     % Constrain end position to 1 and end velocity to 0
-    ceq = [ceq ; x(end)-6.5; y(end)-9; yaw(end)+pi; xd(end); yd(end); psd(1)];
+    ceq = [ceq ; x(end)-6.5; y(end)-9; yaw(end)-pi; xd(end); yd(end); psd(1)];
 end

@@ -3,9 +3,9 @@ close all
 
 x = [0, 0];
 
-W = diag([5, 5, 5]);
+W = 50.*diag([1, 1, 1]);
 
-hp = struct('y_std',0.01,'sig_std',1.39978,'W',W);
+hp = struct('y_std',0.01,'sig_std',0.01,'W',W,'SF',[10,10,10,1]);
 invGP = LocalGP(50, 60, 0.5, hp);
 xdd = researchSim_accel([0.01, 0.01], 0, 0);
 invGP = invGP.add_training_data([0.01, 0.01, xdd], 0);
